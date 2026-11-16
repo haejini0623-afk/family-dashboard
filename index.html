@@ -1401,7 +1401,7 @@ function HomeTab({ state, onMemberTap, stampKid, setStampKid, openCalendar, togg
         </div>
 
         <p className="mt-2.5 text-[10.5px] font-bold text-[#A99B8A] leading-relaxed">
-          {stampKid}가 그날 공부나 루틴을 하나라도 마치면 도장이 찍혀요
+          {stampKid}가 그날 독서나 루틴을 하나라도 마치면 도장이 찍혀요
         </p>
 
         <div className="mt-3 flex items-end justify-between gap-0.5">
@@ -1591,7 +1591,7 @@ function TodoTab({ state, onToggle, onAdd, onEdit, onDelete }) {
   );
 }
 
-/* ────────────────────────── 공부 ────────────────────────── */
+/* ────────────────────────── 독서 ────────────────────────── */
 function StudyTimerCard({ timer, onToast }) {
   const [custom, setCustom] = useState('');
   const hint = timer.running
@@ -1696,7 +1696,7 @@ function StudyTab({ state, timer, studyFilter, setStudyFilter, onToggle, onPin, 
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <h2 className="text-[16.5px] font-extrabold text-[#4B423A] flex items-center gap-1.5">
-              <span>📚</span> 오늘의 공부 플랜
+              <span>📖</span> 오늘의 독서 플랜
             </h2>
           </div>
           <div className="flex gap-1.5 shrink-0">
@@ -1704,13 +1704,13 @@ function StudyTab({ state, timer, studyFilter, setStudyFilter, onToggle, onPin, 
               ⚙️ 고정 항목
             </button>
             <button onClick={() => onEdit(null, 'add')} className="rounded-full bg-white border border-[#E4E9F0] px-2.5 py-2 text-[10px] font-extrabold text-[#5E7F9F] press whitespace-nowrap">
-              + 공부 추가
+              + 독서 추가
             </button>
           </div>
         </div>
 
         <p className="mt-1.5 text-[10px] font-bold leading-relaxed text-[#A99A8C]">
-          승우·은우·서우가 각자 할 공부를 체크해요 · 📌 고정 항목은 매일 아침 자동으로 올라와요 · 항목마다 정한 금액(100원·50원)씩 쌓여요
+          승우·은우·서우가 각자 할 독서를 체크해요 · 📌 고정 항목은 매일 아침 자동으로 올라와요 · 항목마다 정한 금액(100원·50원)씩 쌓여요
         </p>
 
         <div className="mt-3 flex items-center gap-2">
@@ -1812,7 +1812,7 @@ function StudyTab({ state, timer, studyFilter, setStudyFilter, onToggle, onPin, 
                       📌
                     </button>
                     <button onClick={() => onEdit(s, 'edit')} aria-label="수정" className="h-7 w-9 rounded-[0.6rem] bg-[#FFFDF6] border border-[#EFE7D8] text-[12px] press">✏️</button>
-                    <button onClick={() => onDelete(s)} aria-label="공부 항목 삭제" className="h-7 w-9 rounded-[0.6rem] bg-[#FFFDF6] border border-[#EFE7D8] text-[12px] text-[#C9726C] press">✕</button>
+                    <button onClick={() => onDelete(s)} aria-label="독서 항목 삭제" className="h-7 w-9 rounded-[0.6rem] bg-[#FFFDF6] border border-[#EFE7D8] text-[12px] text-[#C9726C] press">✕</button>
                   </div>
                 </div>
               ))}
@@ -1852,7 +1852,7 @@ function MoneyTab({ state, moneyKid, setMoneyKid, onChangeStart, onAddEntry, onD
           <span className="text-[30px] leading-none">🐷</span>
           <div className="min-w-0">
             <h2 className="text-[18px] font-extrabold text-[#4B423A]">{moneyKid} 용돈기입장</h2>
-            <p className="mt-0.5 text-[10px] font-bold text-[#A99A8C] leading-relaxed">공부를 끝낼 때마다 정한 금액(100원·50원)씩 쌓여요</p>
+            <p className="mt-0.5 text-[10px] font-bold text-[#A99A8C] leading-relaxed">독서를 끝낼 때마다 정한 금액(100원·50원)씩 쌓여요</p>
           </div>
         </div>
 
@@ -1869,7 +1869,7 @@ function MoneyTab({ state, moneyKid, setMoneyKid, onChangeStart, onAddEntry, onD
 
         <div className="mt-2.5 flex flex-wrap gap-1.5">
           <span className="rounded-full bg-white/85 border border-[#EFE2D0] px-2.5 py-1 text-[10px] font-extrabold text-[#8A7A64]">시작 금액 {won(money.start)}원</span>
-          <span className="rounded-full bg-white/85 border border-[#EFE2D0] px-2.5 py-1 text-[10px] font-extrabold text-[#C08A3A]">공부 적립 +{won(money.study)}원</span>
+          <span className="rounded-full bg-white/85 border border-[#EFE2D0] px-2.5 py-1 text-[10px] font-extrabold text-[#C08A3A]">독서 적립 +{won(money.study)}원</span>
           <span className="rounded-full bg-white/85 border border-[#EFE2D0] px-2.5 py-1 text-[10px] font-extrabold text-[#4C8A62]">입금 +{won(money.dep)}원</span>
           <span className="rounded-full bg-white/85 border border-[#EFE2D0] px-2.5 py-1 text-[10px] font-extrabold text-[#C0605C]">사용 -{won(money.use)}원</span>
         </div>
@@ -1938,9 +1938,9 @@ function MoneyTab({ state, moneyKid, setMoneyKid, onChangeStart, onAddEntry, onD
         )}
       </div>
 
-      {/* 매일 공부 적립 */}
+      {/* 매일 독서 적립 */}
       <div className="rounded-[1.6rem] bg-white border border-[#F1E9DA] p-3.5 shadow-sm">
-        <h3 className="text-[14.5px] font-extrabold text-[#4B423A] flex items-center gap-1.5">📅 매일 공부 적립</h3>
+        <h3 className="text-[14.5px] font-extrabold text-[#4B423A] flex items-center gap-1.5">📅 매일 독서 적립</h3>
         <p className="mt-0.5 text-[10px] font-bold text-[#A99A8C]">하루에 한 줄로 그날 총액만 보여요</p>
 
         <div className="mt-2.5 rounded-2xl bg-[#FFFDF4] border border-[#F1E9D8] px-3 py-2.5 flex items-center justify-between gap-2">
@@ -1948,7 +1948,7 @@ function MoneyTab({ state, moneyKid, setMoneyKid, onChangeStart, onAddEntry, onD
             <span className="text-[11px] font-extrabold text-[#6B5B4A] whitespace-nowrap">{fmtDay(todayKey)}</span>
             <span className="rounded-full bg-[#E9F6EC] text-[#3E7B52] px-1.5 py-0.5 text-[8.5px] font-extrabold">오늘</span>
           </div>
-          <span className="text-[10.5px] font-extrabold text-[#8A7A64] whitespace-nowrap">공부 {todayLog.count || 0}개 · <span className="text-[#C08A3A]">+{won(todayLog.amount || 0)}원</span></span>
+          <span className="text-[10.5px] font-extrabold text-[#8A7A64] whitespace-nowrap">독서 {todayLog.count || 0}개 · <span className="text-[#C08A3A]">+{won(todayLog.amount || 0)}원</span></span>
         </div>
 
         {days.filter((k) => k !== todayKey).length > 0 ? (
@@ -1957,13 +1957,13 @@ function MoneyTab({ state, moneyKid, setMoneyKid, onChangeStart, onAddEntry, onD
               <div key={k} className="flex items-center justify-between px-1 py-1">
                 <span className="text-[10px] font-bold text-[#A99B8A]">{fmtDay(k)}</span>
                 <span className="text-[10px] font-extrabold text-[#8A7A64]">
-                  공부 {log[k].count || 0}개 · <span className="text-[#C08A3A]">+{won(log[k].amount || 0)}원</span>
+                  독서 {log[k].count || 0}개 · <span className="text-[#C08A3A]">+{won(log[k].amount || 0)}원</span>
                 </span>
               </div>
             ))}
           </div>
         ) : (
-          <p className="mt-2 text-center text-[10px] font-bold text-[#B6A996]">공부를 하나 끝내면 여기에 쌓여요</p>
+          <p className="mt-2 text-center text-[10px] font-bold text-[#B6A996]">독서를 하나 끝내면 여기에 쌓여요</p>
         )}
       </div>
     </div>
@@ -2390,7 +2390,7 @@ function StampCalendar({ kid, stamps, onToggle, chars }) {
         })}
       </div>
       <p className="mt-3 text-center text-[9.5px] font-bold text-[#B3A695] leading-relaxed">
-        날짜를 눌러 도장을 찍거나 지울 수 있어요<br />공부·할 일을 하나 마치면 오늘 도장이 자동으로 찍혀요
+        날짜를 눌러 도장을 찍거나 지울 수 있어요<br />독서·할 일을 하나 마치면 오늘 도장이 자동으로 찍혀요
       </p>
     </div>
   );
@@ -2485,10 +2485,10 @@ function StudySheet({ open, mode, initial, onClose, onSave, chars }) {
   };
 
   return (
-    <Sheet title={mode === 'edit' ? '공부 항목 수정' : '공부 추가'} subtitle="고정 항목으로 두면 매일 아침 다시 올라와요" onClose={onClose}>
+    <Sheet title={mode === 'edit' ? '독서 항목 수정' : '독서 추가'} subtitle="고정 항목으로 두면 매일 아침 다시 올라와요" onClose={onClose}>
       <div className="space-y-3">
         <div>
-          <p className="mb-1.5 text-[10.5px] font-extrabold text-[#9A8A72]">누구의 공부인가요?</p>
+          <p className="mb-1.5 text-[10.5px] font-extrabold text-[#9A8A72]">누구의 독서 항목인가요?</p>
           <div className="flex flex-wrap gap-1.5">
             {MEMBERS.map((m) => (
               <button
@@ -2506,7 +2506,7 @@ function StudySheet({ open, mode, initial, onClose, onSave, chars }) {
 
         <div className="flex gap-1.5">
           <div className="flex-1">
-            <p className="mb-1.5 text-[10.5px] font-extrabold text-[#9A8A72]">공부 내용</p>
+            <p className="mb-1.5 text-[10.5px] font-extrabold text-[#9A8A72]">독서 내용</p>
             <input
               autoFocus
               value={text}
@@ -2777,7 +2777,7 @@ function App() {
     showToast('할 일을 지웠어요', () => setState((s) => ({ ...s, tasks: backup })));
   };
 
-  /* ── 공부 ── */
+  /* ── 독서 ── */
   const toggleStudy = (item) => {
     setState((s) => {
       const nowDone = !item.done;
@@ -2807,10 +2807,10 @@ function App() {
   const saveStudyFromSheet = (payload, mode, id) => {
     if (mode === 'edit' && id) {
       setState((s) => ({ ...s, study: s.study.map((x) => (x.id === id ? { ...x, ...payload } : x)) }));
-      showToast('공부 항목을 수정했어요');
+      showToast('독서 항목을 수정했어요');
     } else {
       setState((s) => ({ ...s, study: [...s.study, { id: uid('st'), done: false, ...payload }] }));
-      showToast('공부 항목을 추가했어요');
+      showToast('독서 항목을 추가했어요');
     }
     setStudyModal(null);
   };
@@ -2818,7 +2818,7 @@ function App() {
   const deleteStudy = (item) => {
     const backup = clone(state.study);
     setState((s) => ({ ...s, study: s.study.filter((x) => x.id !== item.id) }));
-    showToast('공부 항목을 지웠어요', () => setState((s) => ({ ...s, study: backup })));
+    showToast('독서 항목을 지웠어요', () => setState((s) => ({ ...s, study: backup })));
   };
 
   /* ── 일정 ── */
@@ -2953,7 +2953,7 @@ function App() {
   const tabs = [
     { id: 'home', icon: '🏠', label: '홈' },
     { id: 'todo', icon: '📝', label: '할 일' },
-    { id: 'study', icon: '📚', label: '공부' },
+    { id: 'study', icon: '📖', label: '독서' },
     { id: 'schedule', icon: '📅', label: '일정' },
     { id: 'money', icon: '💰', label: '용돈' },
     { id: 'chat', icon: '💬', label: '채팅' },
@@ -3294,7 +3294,7 @@ function App() {
               })}
             </div>
             <p className="mt-3 rounded-2xl border border-[#F1E9DA] bg-[#FFFDF6] px-3 py-2 text-[9.5px] font-bold leading-relaxed text-[#B0A392]">
-              도장판·할 일·공부·채팅 어디서든 고른 캐릭터로 보여요. 채팅 스티커도 먼작귀 친구들이에요.
+              도장판·할 일·독서·채팅 어디서든 고른 캐릭터로 보여요. 채팅 스티커도 먼작귀 친구들이에요.
             </p>
           </Sheet>
         ) : null}
@@ -3321,7 +3321,7 @@ function App() {
 
         {sheet === 'fixed' ? (
           <Sheet
-            title="⚙️ 공부 고정 항목"
+            title="⚙️ 독서 고정 항목"
             subtitle="📌 고정한 항목은 매일 아침 다시 올라와요"
             onClose={() => setSheet(null)}
             footer={
@@ -3329,7 +3329,7 @@ function App() {
                 onClick={() => {
                   setState((s) => ({ ...s, study: s.study.map((x) => ({ ...x, done: false })) }));
                   setSheet(null);
-                  showToast('오늘 공부 체크를 모두 풀었어요');
+                  showToast('오늘 독서 체크를 모두 풀었어요');
                 }}
                 className="w-full rounded-2xl bg-white border border-[#EDE3D2] py-3 text-[12px] font-extrabold text-[#8A7C66] press"
               >
