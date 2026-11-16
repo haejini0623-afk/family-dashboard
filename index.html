@@ -62,6 +62,7 @@
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
   /* JSX를 클래식 런타임(React.createElement)으로 바꿔 주는 프리셋.
      기본 react 프리셋은 자동 런타임이라 브라우저에서 그대로 실행되지 않는다. */
@@ -173,31 +174,46 @@ function makeDefault() {
       { id: 'c4', from: '승우', text: '나 수학 문제집 3장 풀었어요. 오늘 별 하나 더!', type: 'text', time: at(10, 40), heart: true },
     ],
     settings: { region: '의령군', temp: 15, sky: '맑음', low: 9, high: 18, dust: '보통', dust2: '보통', mask: '마스크 챙겨요' },
-    chatLock: false,
+  };
+}
+
+/* 저장된 모양이 조금 달라도 화면이 깨지지 않게 기본값과 합쳐 준다 */
+function normalizeState(p) {
+  const def = makeDefault();
+  const s = p && typeof p === 'object' ? p : {};
+  return {
+    ...def,
+    ...s,
+    settings: { ...def.settings, ...(s.settings || {}) },
+    money: { ...def.money, ...(s.money || {}) },
+    stamps: { ...def.stamps, ...(s.stamps || {}) },
+    studyLog: { ...def.studyLog, ...(s.studyLog || {}) },
+    mission: { ...def.mission, ...(s.mission || {}) },
+    tasks: Array.isArray(s.tasks) ? s.tasks : def.tasks,
+    study: Array.isArray(s.study) ? s.study : def.study,
+    chats: Array.isArray(s.chats) ? s.chats : def.chats,
   };
 }
 
 function loadState() {
-  const def = makeDefault();
   try {
     const raw = window.localStorage.getItem(KEY);
-    if (!raw) return def;
-    const p = JSON.parse(raw) || {};
-    return {
-      ...def,
-      ...p,
-      settings: { ...def.settings, ...(p.settings || {}) },
-      money: { ...def.money, ...(p.money || {}) },
-      stamps: { ...def.stamps, ...(p.stamps || {}) },
-      studyLog: { ...def.studyLog, ...(p.studyLog || {}) },
-      mission: { ...def.mission, ...(p.mission || {}) },
-      tasks: Array.isArray(p.tasks) ? p.tasks : def.tasks,
-      study: Array.isArray(p.study) ? p.study : def.study,
-      chats: Array.isArray(p.chats) ? p.chats : def.chats,
-    };
+    if (!raw) return makeDefault();
+    return normalizeState(JSON.parse(raw));
   } catch (e) {
-    return def;
+    return makeDefault();
   }
+}
+
+/* 고정 항목은 매일 아침 다시 열린다 */
+function rolloverState(s) {
+  const today = dkey();
+  if (!s || s.lastRollover === today) return s;
+  return {
+    ...s,
+    study: (s.study || []).map((it) => (it.pinned ? { ...it, done: false } : it)),
+    lastRollover: today,
+  };
 }
 
 function saveState(s) {
@@ -217,6 +233,213 @@ const storageOK = (() => {
     return false;
   }
 })();
+
+/* ────────────────────────── 가족 동기화 (Supabase) ────────────────────────── */
+const SYNC_URL = 'https://wqbyszeybgqcbwosqnke.supabase.co';
+const SYNC_KEY = 'sb_publishable_NT-byzywuVd10CalU3G-4w_8xCcnOUu';
+const SYNC_TABLE = 'family_state';
+const SYNC_ROW = 'main';
+const DEVICE_KEY = 'family-dashboard:device:v1';
+/* 서버로 보내지 않고 이 기기에만 남기는 값들 (내 채팅 이름, 이 기기 잠금, 동기화 표식) */
+const LOCAL_ONLY = ['chatLock', 'chatLocked', 'chatSender', '__sync', 'sync'];
+/* 이 탭을 구분하는 표식 — 내가 보낸 변경이 실시간으로 되돌아온 것을 알아채고 다시 보내지 않는다 */
+const CLIENT_ID = `c${Math.random().toString(36).slice(2, 10)}`;
+
+const SYNC_TONE = {
+  live: { dot: '#6FCF8B', ring: 'rgba(111,207,139,0.22)', label: '실시간 동기화 중' },
+  syncing: { dot: '#E8B448', ring: 'rgba(232,180,72,0.24)', label: '저장하는 중…' },
+  ready: { dot: '#E8B448', ring: 'rgba(232,180,72,0.24)', label: '동기화 준비됨' },
+  starting: { dot: '#D8C6A8', ring: 'rgba(216,198,168,0.26)', label: '연결 중…' },
+  offline: { dot: '#D69F86', ring: 'rgba(214,159,134,0.26)', label: '동기화를 기다리는 중' },
+};
+const syncTone = (sync) => SYNC_TONE[(sync && sync.status) || 'starting'] || SYNC_TONE.starting;
+
+function sharedSnapshot(s) {
+  const out = {};
+  Object.keys(s || {}).forEach((k) => {
+    if (LOCAL_ONLY.indexOf(k) < 0) out[k] = s[k];
+  });
+  return out;
+}
+
+/* 이 기기에서만 쓰는 값 — 채팅에서 고른 내 이름과 '이 기기 잠금' */
+function loadDevice() {
+  const def = { chatAs: '엄마', chatLocked: false };
+  try {
+    const raw = window.localStorage.getItem(DEVICE_KEY);
+    const p = raw ? JSON.parse(raw) || {} : {};
+    if (p.chatLocked == null) {
+      try {
+        const legacy = JSON.parse(window.localStorage.getItem(KEY) || '{}') || {};
+        if (legacy.chatLock != null) p.chatLocked = !!legacy.chatLock;
+      } catch (e) { /* 무시 */ }
+    }
+    return {
+      chatAs: MEMBERS.some((m) => m.id === p.chatAs) ? p.chatAs : def.chatAs,
+      chatLocked: !!p.chatLocked,
+    };
+  } catch (e) {
+    return def;
+  }
+}
+
+function saveDevice(d) {
+  try {
+    window.localStorage.setItem(DEVICE_KEY, JSON.stringify(d));
+  } catch (e) {
+    /* 저장이 막힌 환경에서는 이번 화면에서만 기억한다 */
+  }
+}
+
+function useFamilySync(state, setState, stateRef) {
+  const [sync, setSync] = useState({ status: 'starting', label: SYNC_TONE.starting.label });
+  const clientRef = useRef(null);
+  const liveRef = useRef(false);
+  const aliveRef = useRef(true);
+  const sentRef = useRef('');
+  const timerRef = useRef(null);
+  /* 서버의 가족 기록을 처음 읽기 전에는 올리지 않는다 (다른 기기 기록을 덮어쓰지 않도록) */
+  const readyRef = useRef(false);
+
+  const say = (status, label) => {
+    if (!aliveRef.current) return;
+    setSync((s) => (s.status === status && s.label === label ? s : { status, label }));
+  };
+  const settle = () => (liveRef.current ? say('live', SYNC_TONE.live.label) : say('ready', SYNC_TONE.ready.label));
+
+  /* 다른 기기에서 올라온 가족 기록을 화면에 반영한다 */
+  const applyRemote = (raw) => {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return false;
+    const meta = raw.__sync;
+    if (meta && meta.c === CLIENT_ID) return false;
+    const clean = sharedSnapshot(raw);
+    if (!Object.keys(clean).length) return false;
+    const next = rolloverState(normalizeState(clean));
+    const serial = JSON.stringify(sharedSnapshot(next));
+    if (serial === sentRef.current) return false;
+    sentRef.current = serial;
+    setState(next);
+    return true;
+  };
+
+  /* 이 기기의 가족 기록을 서버에 올린다 */
+  const pushNow = async (snapshot, force) => {
+    const client = clientRef.current;
+    if (!client || !aliveRef.current) return;
+    if (!readyRef.current) return;
+    const base = sharedSnapshot(snapshot || stateRef.current || {});
+    const serial = JSON.stringify(base);
+    if (!force && serial === sentRef.current) return;
+    try {
+      say('syncing', SYNC_TONE.syncing.label);
+      const res = await client.from(SYNC_TABLE).upsert(
+        {
+          id: SYNC_ROW,
+          data: { ...base, __sync: { c: CLIENT_ID, r: Date.now(), t: new Date().toISOString() } },
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'id' }
+      );
+      if (!aliveRef.current) return;
+      if (res && res.error) {
+        say('offline', SYNC_TONE.offline.label);
+        return;
+      }
+      sentRef.current = serial;
+      settle();
+    } catch (e) {
+      say('offline', SYNC_TONE.offline.label);
+    }
+  };
+
+  /* 1) 처음 한 번 서버의 가족 기록을 읽고, 2) 실시간 구독을 연다 */
+  useEffect(() => {
+    aliveRef.current = true;
+    const create = window.supabase && window.supabase.createClient;
+    if (!create) {
+      say('offline', SYNC_TONE.offline.label);
+      return () => { aliveRef.current = false; };
+    }
+    let client = null;
+    try {
+      client = create(SYNC_URL, SYNC_KEY, {
+        auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+        realtime: { params: { eventsPerSecond: 4 } },
+      });
+    } catch (e) {
+      say('offline', SYNC_TONE.offline.label);
+      return () => { aliveRef.current = false; };
+    }
+    clientRef.current = client;
+
+    (async () => {
+      try {
+        const res = await client.from(SYNC_TABLE).select('data, updated_at').eq('id', SYNC_ROW).maybeSingle();
+        if (!aliveRef.current) return;
+        if (res && res.error) {
+          readyRef.current = true;
+          say('offline', SYNC_TONE.offline.label);
+          return;
+        }
+        const row = res && res.data;
+        readyRef.current = true;
+        if (row && row.data && typeof row.data === 'object' && Object.keys(row.data).length) {
+          applyRemote(row.data);
+          settle();
+        } else {
+          await pushNow(stateRef.current, true);
+        }
+      } catch (e) {
+        readyRef.current = true;
+        say('offline', SYNC_TONE.offline.label);
+      }
+    })();
+
+    let channel = null;
+    try {
+      channel = client
+        .channel(`family_state_${CLIENT_ID}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: SYNC_TABLE, filter: `id=eq.${SYNC_ROW}` },
+          (payload) => {
+            const row = payload && payload.new;
+            if (row && row.data) applyRemote(row.data);
+          }
+        )
+        .subscribe((status) => {
+          if (!aliveRef.current) return;
+          if (status === 'SUBSCRIBED') {
+            liveRef.current = true;
+            say('live', SYNC_TONE.live.label);
+          } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+            liveRef.current = false;
+            say('offline', SYNC_TONE.offline.label);
+          }
+        });
+    } catch (e) {
+      say('offline', SYNC_TONE.offline.label);
+    }
+
+    return () => {
+      aliveRef.current = false;
+      if (timerRef.current) clearTimeout(timerRef.current);
+      try {
+        if (channel) client.removeChannel(channel);
+      } catch (e) { /* 무시 */ }
+    };
+  }, []);
+
+  /* 이 기기에서 바뀐 내용은 잠깐 모았다가(250ms) 한 번에 올린다 */
+  useEffect(() => {
+    const serial = JSON.stringify(sharedSnapshot(state));
+    if (serial === sentRef.current) return;
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => { pushNow(stateRef.current); }, 250);
+  }, [state]);
+
+  return sync;
+}
 
 /* ────────────────────────── 계산 도우미 ────────────────────────── */
 function moneyOf(state, kid) {
@@ -455,8 +678,9 @@ function WeatherCard({ s }) {
   );
 }
 
-function Header({ settings, onSettings, onFullscreen }) {
+function Header({ settings, onSettings, onFullscreen, sync }) {
   const now = new Date();
+  const tone = syncTone(sync);
   return (
     <div className="flex-none px-4 pt-4 pb-2">
       <div className="flex items-start justify-between gap-2">
@@ -474,11 +698,12 @@ function Header({ settings, onSettings, onFullscreen }) {
         <div className="flex items-start gap-2 shrink-0 pt-0.5">
           <button
             onClick={onSettings}
-            aria-label="설정"
+            aria-label={`설정 · ${tone.label}`}
+            title={tone.label}
             className="h-11 pl-3 pr-2.5 rounded-full bg-white shadow-[0_4px_14px_rgba(185,165,135,0.18)] border border-[#F2E6D1] flex items-center gap-1.5 press"
           >
             <span className="text-[16px]">⚙️</span>
-            <span className="h-2.5 w-2.5 rounded-full bg-[#6FCF8B] shadow-[0_0_0_2px_rgba(111,207,139,0.22)]"></span>
+            <span className="h-2.5 w-2.5 rounded-full" style={{ background: tone.dot, boxShadow: `0 0 0 2px ${tone.ring}` }}></span>
           </button>
           <button
             onClick={onFullscreen}
@@ -1138,11 +1363,10 @@ function MoneyTab({ state, moneyKid, setMoneyKid, onChangeStart, onAddEntry, onD
 }
 
 /* ────────────────────────── 채팅 ────────────────────────── */
-function ChatTab({ state, chatAs, setChatAs, onSend, onHeart, onDelete, onToggleLock, onToast }) {
+function ChatTab({ state, chatAs, setChatAs, locked, onSend, onHeart, onDelete, onToggleLock, onToast }) {
   const [draft, setDraft] = useState('');
   const [picker, setPicker] = useState(null);
   const listRef = useRef(null);
-  const locked = state.chatLock;
 
   useEffect(() => {
     const el = listRef.current;
@@ -1168,7 +1392,7 @@ function ChatTab({ state, chatAs, setChatAs, onSend, onHeart, onDelete, onToggle
               <span>💬</span> 우리 가족 채팅
             </h2>
             <p className="mt-1 text-[10px] font-bold leading-relaxed text-[#A99A8C]">
-              가족이 말풍선과 스티커로 이야기해요 · 이 기기에만 저장돼요
+              가족이 말풍선과 스티커로 이야기해요 · 가족 모두에게 바로 보여요
             </p>
           </div>
           <button
@@ -1552,10 +1776,13 @@ function StudySheet({ open, mode, initial, onClose, onSave }) {
 /* ────────────────────────── 앱 ────────────────────────── */
 function App() {
   const [state, setState] = useState(loadState);
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const sync = useFamilySync(state, setState, stateRef);
+  const [device, setDevice] = useState(loadDevice);
   const [tab, setTab] = useState('home');
   const [stampKid, setStampKid] = useState('승우');
   const [moneyKid, setMoneyKid] = useState('승우');
-  const [chatAs, setChatAs] = useState('엄마');
   const [studyFilter, setStudyFilter] = useState('전체');
   const [sheet, setSheet] = useState(null);
   const [taskModal, setTaskModal] = useState(null);
@@ -1563,6 +1790,10 @@ function App() {
   const [toast, setToast] = useState(null);
   const timer = useTimer();
   const scrollRef = useRef(null);
+  /* 채팅 이름과 '이 기기 잠금'은 이 기기에만 남는다 */
+  const chatAs = device.chatAs || '엄마';
+  const setChatAs = (v) => setDevice((d) => ({ ...d, chatAs: v }));
+  const chatLocked = !!device.chatLocked;
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -1570,16 +1801,11 @@ function App() {
   }, [tab]);
 
   useEffect(() => { saveState(state); }, [state]);
+  useEffect(() => { saveDevice(device); }, [device]);
 
   /* 고정 항목은 매일 아침 다시 열린다 */
   useEffect(() => {
-    const today = dkey();
-    setState((s) => {
-      if (s.lastRollover === today) return s;
-      const study = s.study.map((it) => (it.pinned ? { ...it, done: false } : it));
-      return { ...s, study, lastRollover: today };
-    });
-    // eslint-disable-next-line
+    setState((s) => rolloverState(s));
   }, []);
 
   const showToast = (msg, undo) => setToast({ id: Date.now(), msg, undo });
@@ -1741,8 +1967,8 @@ function App() {
     showToast('메시지를 지웠어요', () => setState((s) => ({ ...s, chats: backup })));
   };
   const toggleLock = () => {
-    setState((s) => ({ ...s, chatLock: !s.chatLock }));
-    showToast(state.chatLock ? '🔓 잠금을 풀었어요' : '🔒 이 기기를 잠갔어요');
+    setDevice((d) => ({ ...d, chatLocked: !d.chatLocked }));
+    showToast(chatLocked ? '🔓 잠금을 풀었어요' : '🔒 이 기기를 잠갔어요');
   };
 
   /* ── 설정 ── */
@@ -1750,7 +1976,7 @@ function App() {
   const resetAll = () => {
     setState(() => makeDefault());
     setSheet(null);
-    showToast('기록을 처음 상태로 되돌렸어요');
+    showToast('기록을 처음 상태로 되돌렸어요 (가족 모두에게 적용)');
   };
   const exportData = () => {
     try {
@@ -1777,6 +2003,7 @@ function App() {
   };
 
   const todayTasks = state.tasks;
+  const tone = syncTone(sync);
   const tabs = [
     { id: 'home', icon: '🏠', label: '홈' },
     { id: 'todo', icon: '📝', label: '할 일' },
@@ -1788,12 +2015,12 @@ function App() {
   return (
     <div className="min-h-[100dvh] w-full flex justify-center">
       <div className="relative w-full max-w-[460px] h-[100dvh] sm:h-[calc(100dvh-28px)] sm:my-3.5 bg-[#FEFBEF] flex flex-col overflow-hidden sm:rounded-[2.4rem] sm:border sm:border-white sm:shadow-[0_24px_70px_rgba(150,120,90,0.28)]">
-        {tab === 'chat' ? <Header settings={state.settings} onSettings={() => setSheet('settings')} onFullscreen={toggleFullscreen} /> : null}
+        {tab === 'chat' ? <Header settings={state.settings} sync={sync} onSettings={() => setSheet('settings')} onFullscreen={toggleFullscreen} /> : null}
 
         <main className="flex-1 min-h-0 flex flex-col">
           {tab === 'chat' ? null : (
             <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
-              <Header settings={state.settings} onSettings={() => setSheet('settings')} onFullscreen={toggleFullscreen} />
+              <Header settings={state.settings} sync={sync} onSettings={() => setSheet('settings')} onFullscreen={toggleFullscreen} />
               <div className="px-4 pb-4">
               {tab === 'home' ? (
                 <HomeTab
@@ -1865,6 +2092,7 @@ function App() {
               state={state}
               chatAs={chatAs}
               setChatAs={setChatAs}
+              locked={chatLocked}
               onSend={sendChat}
               onHeart={heartChat}
               onDelete={deleteChat}
@@ -1915,7 +2143,7 @@ function App() {
         {sheet === 'settings' ? (
           <Sheet
             title="⚙️ 설정"
-            subtitle="날씨와 지역을 바꾸고, 이 기기에 저장된 기록을 관리해요"
+            subtitle="날씨와 지역을 바꾸고, 가족 기록을 관리해요"
             onClose={() => setSheet(null)}
             footer={
               <button onClick={() => setSheet(null)} className="w-full rounded-2xl bg-[#4B423A] text-white py-3 text-[12.5px] font-extrabold press">
@@ -2006,9 +2234,20 @@ function App() {
               </div>
 
               <div className="rounded-[1.3rem] bg-[#FFFDF6] border border-[#F1E9DA] p-3.5">
+                <p className="text-[11px] font-extrabold text-[#8A7A64]">🔄 가족 기록 동기화</p>
+                <div className="mt-1.5 flex items-center gap-1.5">
+                  <span className="h-2 w-2 rounded-full" style={{ background: tone.dot, boxShadow: `0 0 0 2px ${tone.ring}` }}></span>
+                  <span className="text-[10px] font-extrabold text-[#8A7C66]">{sync ? sync.label : SYNC_TONE.starting.label}</span>
+                </div>
+                <p className="mt-1 text-[9.5px] font-bold leading-relaxed text-[#B0A392]">
+                  가족 모두의 기록이 한곳에 모여 실시간으로 맞춰져요. 채팅에서 고른 내 이름과 '이 기기 잠금'만 이 기기에 남아요.
+                </p>
+              </div>
+
+              <div className="rounded-[1.3rem] bg-[#FFFDF6] border border-[#F1E9DA] p-3.5">
                 <p className="text-[11px] font-extrabold text-[#8A7A64]">💾 기록 관리</p>
                 <p className="mt-1 text-[9.5px] font-bold leading-relaxed text-[#B0A392]">
-                  모든 기록은 이 기기의 브라우저(localStorage)에만 저장돼요. 서버로 보내지 않아요.
+                  기록은 가족 전용 서버에 저장되고, 이 기기 브라우저에도 복사본이 남아요. 인터넷이 잠시 끊겨도 화면은 그대로 열려요.
                 </p>
                 {!storageOK ? (
                   <p className="mt-1.5 rounded-xl bg-[#FFF6E2] border border-[#F3E2BE] px-2.5 py-2 text-[9.5px] font-bold leading-relaxed text-[#A8802F]">
@@ -2158,7 +2397,7 @@ function ResetButton({ onReset }) {
   }
   return (
     <button onClick={onReset} className="flex-1 rounded-xl bg-[#C9605A] border border-[#B8544F] py-2.5 text-[11px] font-extrabold text-white press">
-      정말 초기화할까요?
+      정말 초기화할까요? (가족 전체)
     </button>
   );
 }
