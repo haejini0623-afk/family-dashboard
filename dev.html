@@ -76,36 +76,16 @@
 
 <body>
 <div id="root"></div>
-<div id="boot-error" style="display:none;position:fixed;left:0;right:0;top:0;z-index:9999;background:#B4474F;color:#fff;font:12px/1.5 monospace;padding:8px 10px;white-space:pre-wrap"></div>
+<div id="boot-error" style="display:none;position:fixed;left:0;right:0;top:0;z-index:9999;background:#B4474F;color:#fff;font:12px/1.5 monospace;padding:8px 10px;white-space:pre-wrap;max-height:60vh;overflow:auto"></div>
 <script>
-  function __showErr(msg) {
+  window.__bootErr = function (msg) {
     var el = document.getElementById('boot-error');
     if (!el) return;
     el.style.display = 'block';
-    el.textContent = 'SCRIPT ERROR: ' + msg;
-  }
-  window.addEventListener('error', function (e) { __showErr((e && e.message) || 'unknown'); });
-  window.addEventListener('unhandledrejection', function (e) { __showErr('promise: ' + ((e.reason && e.reason.message) || e.reason)); });
-</script>
-<script>
-window.addEventListener('load', function () {
-  setTimeout(function () {
-    var el = document.getElementById('jsx-src');
-    if (!el || !window.Babel) return;
-    try {
-      Babel.transform(el.textContent, { presets: [['react', { runtime: 'classic' }]] });
-      var box = document.getElementById('boot-error');
-      box.style.display = 'block';
-      box.style.background = '#2E7D46';
-      box.textContent = 'JSX OK — no syntax error';
-      setTimeout(function () { box.style.display = 'none'; }, 4000);
-    } catch (e) {
-      var box2 = document.getElementById('boot-error');
-      box2.style.display = 'block';
-      box2.textContent = 'JSX ERROR: ' + e.message;
-    }
-  }, 400);
-});
+    el.textContent = msg;
+  };
+  window.addEventListener('error', function (e) { window.__bootErr('SCRIPT ERROR: ' + ((e && e.message) || 'unknown') + ' @' + ((e && e.filename) || '') + ':' + ((e && e.lineno) || '')); });
+  window.addEventListener('unhandledrejection', function (e) { window.__bootErr('PROMISE: ' + ((e.reason && (e.reason.stack || e.reason.message)) || e.reason)); });
 </script>
 
 
@@ -2919,6 +2899,24 @@ function ResetButton({ onReset }) {
 
 const SHOW_GALLERY = window.location.search.indexOf('gallery=1') >= 0;
 ReactDOM.createRoot(document.getElementById('root')).render(SHOW_GALLERY ? <CharacterGallery /> : <App />);
+</script>
+
+<script>window.__JSX_SRC__ = (document.getElementById('jsx-src') || {}).textContent || '';</script>
+<script>
+window.addEventListener('load', function () {
+  setTimeout(function () {
+    var code = window.__JSX_SRC__ || '';
+    try {
+      var out = Babel.transform(code, { presets: [['react', { runtime: 'classic' }]] });
+      window.__bootErr('JSX OK (' + code.length + ' chars, out ' + out.code.length + ')');
+      var el = document.getElementById('boot-error');
+      el.style.background = '#2E7D46';
+      setTimeout(function () { el.style.display = 'none'; }, 5000);
+    } catch (e) {
+      window.__bootErr('JSX ERROR: ' + e.message + (e.loc ? ' @line ' + e.loc.line : '') + '\n' + (e.codeFrame || ''));
+    }
+  }, 300);
+});
 </script>
 </body>
 </html>
