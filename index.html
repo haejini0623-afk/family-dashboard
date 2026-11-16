@@ -94,14 +94,438 @@ const clone = (o) => JSON.parse(JSON.stringify(o));
 const uid = (p) => `${p}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
 const MEMBERS = [
-  { id: '승우', name: '승우', subtitle: '피구왕 승우와 함께', avatar: '🧑🏻‍🔬', tint: '#EAF7EE', edge: '#CFEBD9', ink: '#3E6B4C', kid: true },
-  { id: '은우', name: '은우', subtitle: '귀염둥이 은우와 함께', avatar: '👧🏻', tint: '#FDEEF3', edge: '#F7D7E2', ink: '#A4526C', kid: true },
-  { id: '서우', name: '서우', subtitle: '스파이더맨 서우와 함께', avatar: '🦸🏻‍♂️', tint: '#EDF3FE', edge: '#D4E3FB', ink: '#456A9C', kid: true },
-  { id: '엄마', name: '엄마', subtitle: '수영하는 엄마', avatar: '🏊‍♀️', tint: '#FEF3E4', edge: '#F8DFBE', ink: '#9A6B34', kid: false },
-  { id: '아빠', name: '아빠', subtitle: '다정한 아빠', avatar: '👨🏻', tint: '#F3F0FD', edge: '#E1DAF8', ink: '#5D5192', kid: false },
+  { id: '승우', name: '승우', subtitle: '피구왕 승우와 함께', avatar: '🧑🏻‍🔬', char: 'hachiware', tint: '#EAF7EE', edge: '#CFEBD9', ink: '#3E6B4C', kid: true },
+  { id: '은우', name: '은우', subtitle: '귀염둥이 은우와 함께', avatar: '👧🏻', char: 'chiikawa', tint: '#FDEEF3', edge: '#F7D7E2', ink: '#A4526C', kid: true },
+  { id: '서우', name: '서우', subtitle: '스파이더맨 서우와 함께', avatar: '🦸🏻‍♂️', char: 'usagi', tint: '#EDF3FE', edge: '#D4E3FB', ink: '#456A9C', kid: true },
+  { id: '엄마', name: '엄마', subtitle: '수영하는 엄마', avatar: '🏊‍♀️', char: 'momonga', tint: '#FEF3E4', edge: '#F8DFBE', ink: '#9A6B34', kid: false },
+  { id: '아빠', name: '아빠', subtitle: '다정한 아빠', avatar: '👨🏻', char: 'kurimanju', tint: '#F3F0FD', edge: '#E1DAF8', ink: '#5D5192', kid: false },
 ];
 const M = Object.fromEntries(MEMBERS.map((m) => [m.id, m]));
 const KIDS = MEMBERS.filter((m) => m.kid).map((m) => m.id);
+const DEFAULT_CHARS = Object.fromEntries(MEMBERS.map((m) => [m.id, m.char]));
+
+/* ── 먼작귀 캐릭터 모듈 시작 ── */
+/* ────────────────────────── 먼작귀 캐릭터 (직접 그린 SVG) ────────────────────────── */
+const INK = '#2C221E';
+const BLUSH_PINK = '#F494AB';
+
+const CHARACTERS = [
+  { id: 'chiikawa', name: '치이카와', note: '동글동글 하얀 햄스터' },
+  { id: 'hachiware', name: '하치와레', note: '파란 무늬 하얀 고양이' },
+  { id: 'usagi', name: '우사기', note: '야하! 노란 토끼' },
+  { id: 'momonga', name: '모몽가', note: '하늘색 꼬리 날다람쥐' },
+  { id: 'kurimanju', name: '쿠리만쥬', note: '밤 모자 쓴 만쥬' },
+  { id: 'rakko', name: '라코', note: '이마 흉터 수달' },
+  { id: 'shisa', name: '시사', note: '주황 갈기 사자' },
+  { id: 'kani', name: '카니', note: '분홍 게 머리띠' },
+];
+const CHAR = Object.fromEntries(CHARACTERS.map((c) => [c.id, c]));
+
+const CHAT_STICKERS = [
+  { id: 'hachiware-cry', char: 'hachiware', mood: 'cry', label: '하치와레 눈물', short: '눈물', caption: '왈칵…' },
+  { id: 'chiikawa-cheer', char: 'chiikawa', mood: 'cheer', label: '치이카와 응원', short: '응원', caption: '힘내자!' },
+  { id: 'usagi-yaha', char: 'usagi', mood: 'grin', label: '우사기 야하!', short: '야하!', caption: '야하—!' },
+  { id: 'momonga-love', char: 'momonga', mood: 'love', label: '모몽가 귀여워', short: '귀여워', caption: '귀여워~' },
+  { id: 'kurimanju-cheers', char: 'kurimanju', mood: 'happy', label: '쿠리만쥬 건배', short: '건배', caption: '짠!' },
+  { id: 'rakko-best', char: 'rakko', mood: 'cheer', label: '라코 최고', short: '최고', caption: '최고야' },
+];
+const stickerOf = (id) => CHAT_STICKERS.find((s) => s.id === id) || null;
+
+/* 가족 구성원이 지금 쓰는 캐릭터 (설정에서 바꾼 값 → 기본값 순서) */
+const charOfMember = (chars, id) => {
+  const m = M[id] || {};
+  const pick = (chars && chars[id]) || m.char;
+  return pick && CHAR[pick] ? pick : null;
+};
+
+const charName = (id) => (CHAR[id] ? CHAR[id].name : '');
+
+const heartPath = (x, y, s) =>
+  `M${x} ${y + s * 0.95} C${x - s * 1.45} ${y - s * 0.05} ${x - s * 0.85} ${y - s * 1.2} ${x} ${y - s * 0.35} C${x + s * 0.85} ${y - s * 1.2} ${x + s * 1.45} ${y - s * 0.05} ${x} ${y + s * 0.95} Z`;
+const starPath = (x, y, s) =>
+  `M${x} ${y - s} L${x + s * 0.3} ${y - s * 0.3} L${x + s} ${y} L${x + s * 0.3} ${y + s * 0.3} L${x} ${y + s} L${x - s * 0.3} ${y + s * 0.3} L${x - s} ${y} L${x - s * 0.3} ${y - s * 0.3} Z`;
+
+const eyeMood = (mood, base) =>
+  mood === 'happy' ? 'happy' : mood === 'cry' ? 'cry' : mood === 'love' ? 'love' : (base || 'idle');
+const mouthMood = (mood, base) =>
+  mood === 'happy' ? 'smile'
+    : mood === 'cry' ? 'wavy'
+      : mood === 'cheer' ? 'open'
+        : mood === 'grin' ? 'grin'
+          : (base || 'omega');
+
+/* 반짝이는 눈 — 기분에 따라 감은 눈·하트 눈·눈물 눈 */
+function CEye({ x, y, mood = 'idle', size = 1 }) {
+  const rx = 5.0 * size;
+  const ry = 5.9 * size;
+  if (mood === 'happy') {
+    return <path d={`M${x - 4.8 * size} ${y + 2 * size} Q${x} ${y - 4.6 * size} ${x + 4.8 * size} ${y + 2 * size}`} fill="none" stroke={INK} strokeWidth={2.6 * size} strokeLinecap="round" />;
+  }
+  if (mood === 'cry') {
+    return <path d={`M${x - 4.6 * size} ${y - 1.4 * size} Q${x} ${y + 4.6 * size} ${x + 4.6 * size} ${y - 1.4 * size}`} fill="none" stroke={INK} strokeWidth={2.6 * size} strokeLinecap="round" />;
+  }
+  if (mood === 'love') {
+    return <path d={heartPath(x, y, 5.6 * size)} fill="#EF7189" stroke={INK} strokeWidth={1.5 * size} strokeLinejoin="round" />;
+  }
+  return (
+    <g>
+      <ellipse cx={x} cy={y} rx={rx} ry={ry} fill={INK} />
+      <circle cx={x - rx * 0.34} cy={y - ry * 0.36} r={rx * 0.4} fill="#FFFFFF" />
+      <circle cx={x + rx * 0.34} cy={y + ry * 0.42} r={rx * 0.19} fill="#FFFFFF" opacity="0.9" />
+      {mood === 'serious' ? (
+        <path d={`M${x - rx * 0.95} ${y - ry * 0.55} L${x + rx * 0.95} ${y - ry * 0.85}`} stroke={INK} strokeWidth={2.2 * size} strokeLinecap="round" />
+      ) : null}
+    </g>
+  );
+}
+
+/* 볼 — 분홍빛 대각선 세 줄 */
+function CCheek({ x, y, size = 1 }) {
+  return (
+    <g stroke={BLUSH_PINK} strokeWidth={2 * size} strokeLinecap="round" opacity="0.92">
+      <line x1={x} y1={y + 2.8 * size} x2={x + 3.2 * size} y2={y - 2.6 * size} />
+      <line x1={x + 4 * size} y1={y + 3.6 * size} x2={x + 7.2 * size} y2={y - 1.8 * size} />
+      <line x1={x + 8 * size} y1={y + 4 * size} x2={x + 11.2 * size} y2={y - 1.4 * size} />
+    </g>
+  );
+}
+
+/* 입 — ω, 웃음, 벌린 입, 야하! 미소, 시무룩 */
+function CMouth({ x = 50, y = 64, mood = 'omega', size = 1 }) {
+  const u = size * 1.34;
+  const sw = 2.7 * u;
+  if (mood === 'open') {
+    return (
+      <g>
+        <path d={`M${x - 6.3 * u} ${y - 1.4 * u} Q${x} ${y + 10.5 * u} ${x + 6.3 * u} ${y - 1.4 * u} Z`} fill="#D06A79" stroke={INK} strokeWidth={sw} strokeLinejoin="round" />
+        <path d={`M${x - 2.4 * u} ${y + 4.8 * u} q${2.4 * u} ${3.2 * u} ${4.8 * u} 0`} fill="#F8B0BE" stroke="none" />
+      </g>
+    );
+  }
+  if (mood === 'grin') {
+    return (
+      <g>
+        <path d={`M${x - 9 * u} ${y - 3 * u} Q${x} ${y + 14 * u} ${x + 9 * u} ${y - 3 * u} Q${x} ${y + 2 * u} ${x - 9 * u} ${y - 3 * u} Z`} fill="#C9586B" stroke={INK} strokeWidth={sw} strokeLinejoin="round" />
+        <path d={`M${x - 4.6 * u} ${y + 3.4 * u} q${4.6 * u} ${4.2 * u} ${9.2 * u} 0`} fill="#F8B0BE" stroke="none" />
+      </g>
+    );
+  }
+  if (mood === 'smile') {
+    return <path d={`M${x - 5.6 * u} ${y - 1.2 * u} q${5.6 * u} ${6.6 * u} ${11.2 * u} 0`} fill="none" stroke={INK} strokeWidth={sw} strokeLinecap="round" />;
+  }
+  if (mood === 'wavy') {
+    return <path d={`M${x - 6 * u} ${y} q${3 * u} ${-3.4 * u} ${6 * u} 0 q${3 * u} ${3.4 * u} ${6 * u} 0`} fill="none" stroke={INK} strokeWidth={sw} strokeLinecap="round" />;
+  }
+  if (mood === 'flat') {
+    return <path d={`M${x - 5 * u} ${y} q${2.5 * u} ${-2.6 * u} ${5 * u} 0 q${2.5 * u} ${2.6 * u} ${5 * u} 0`} fill="none" stroke={INK} strokeWidth={sw} strokeLinecap="round" />;
+  }
+  return <path d={`M${x - 5.2 * u} ${y} q${2.6 * u} ${4.4 * u} ${5.2 * u} 0 q${2.6 * u} ${4.4 * u} ${5.2 * u} 0`} fill="none" stroke={INK} strokeWidth={sw} strokeLinecap="round" />;
+}
+
+/* 기분에 따라 붙는 장식 — 눈물, 하트, 반짝이, 부르르 */
+function MoodFlair({ mood }) {
+  if (mood === 'cry') {
+    return (
+      <g>
+        <path d="M34 56 q-3.4 6.4 0.4 9 q4.2 -2 -0.4 -9 z" fill="#8FD2F0" stroke="#5FAFD4" strokeWidth="1.5" strokeLinejoin="round" />
+        <path d="M66 56 q3.4 6.4 -0.4 9 q-4.2 -2 0.4 -9 z" fill="#8FD2F0" stroke="#5FAFD4" strokeWidth="1.5" strokeLinejoin="round" />
+        <circle cx="29" cy="72" r="2.1" fill="#8FD2F0" stroke="#5FAFD4" strokeWidth="1.2" />
+        <circle cx="72" cy="75" r="1.8" fill="#8FD2F0" stroke="#5FAFD4" strokeWidth="1.2" />
+      </g>
+    );
+  }
+  if (mood === 'love') {
+    return (
+      <g>
+        <path d={heartPath(19, 30, 5.4)} fill="#F58BA3" stroke="#DA6880" strokeWidth="1.5" strokeLinejoin="round" />
+        <path d={heartPath(84, 44, 4)} fill="#F58BA3" stroke="#DA6880" strokeWidth="1.4" strokeLinejoin="round" />
+        <path d={heartPath(78, 76, 3)} fill="#FBC3CF" stroke="#DA6880" strokeWidth="1.2" strokeLinejoin="round" />
+      </g>
+    );
+  }
+  if (mood === 'cheer') {
+    return (
+      <g fill="#F8C959" stroke="#DDA02C" strokeWidth="1.4" strokeLinejoin="round">
+        <path d={starPath(15, 33, 7.5)} />
+        <path d={starPath(86, 40, 5.6)} />
+        <path d={starPath(80, 78, 4.4)} />
+      </g>
+    );
+  }
+  if (mood === 'grin') {
+    return (
+      <g stroke="#E79494" strokeWidth="2.6" strokeLinecap="round">
+        <path d="M15 45 l-5.5 -3" />
+        <path d="M14 53 l-6 0" />
+        <path d="M85 45 l5.5 -3" />
+        <path d="M86 53 l6 0" />
+      </g>
+    );
+  }
+  return null;
+}
+
+function ChiikawaArt({ mood }) {
+  return (
+    <g>
+      <g fill="#FFFFFF" stroke={INK} strokeWidth="3.2" strokeLinejoin="round" strokeLinecap="round">
+        <circle cx="29" cy="32" r="9" />
+        <circle cx="71" cy="32" r="9" />
+        <ellipse cx="50" cy="55" rx="29" ry="25.5" />
+      </g>
+      <CEye x={39.5} y={52} mood={eyeMood(mood)} size={0.95} />
+      <CEye x={60.5} y={52} mood={eyeMood(mood)} size={0.95} />
+      <CCheek x={29} y={62} />
+      <CCheek x={56.5} y={62} />
+      <CMouth x={50} y={63} mood={mouthMood(mood)} size={0.94} />
+    </g>
+  );
+}
+
+function HachiwareArt({ mood }) {
+  return (
+    <g>
+      <g fill="#FFFFFF" stroke={INK} strokeWidth="3.2" strokeLinejoin="round" strokeLinecap="round">
+        <path d="M25.5 40 L31 14 L46 27 Z" />
+        <path d="M74.5 40 L69 14 L54 27 Z" />
+        <ellipse cx="50" cy="55" rx="29" ry="25.5" />
+      </g>
+      <path d="M31 32 L33.5 21 L40 27.5 Z" fill="#9CC9E9" />
+      <path d="M69 32 L66.5 21 L60 27.5 Z" fill="#9CC9E9" />
+      <path d="M21.4 52.5 C21.8 31 33.5 20.8 50 20.8 C66.5 20.8 78.2 31 78.6 52.5 C72 50 66.6 45.4 63.4 38.6 C60.2 45.2 55.4 48.6 50 48.6 C44.6 48.6 39.8 45.2 36.6 38.6 C33.4 45.4 28 50 21.4 52.5 Z" fill="#9CC9E9" stroke={INK} strokeWidth="2.8" strokeLinejoin="round" />
+      <CEye x={40} y={56} mood={eyeMood(mood)} size={0.92} />
+      <CEye x={60} y={56} mood={eyeMood(mood)} size={0.92} />
+      <CCheek x={28} y={65} />
+      <CCheek x={55.5} y={65} />
+      <CMouth x={50} y={65.5} mood={mouthMood(mood)} size={0.86} />
+    </g>
+  );
+}
+
+function UsagiArt({ mood }) {
+  return (
+    <g>
+      <g fill="#FBF0C9" stroke={INK} strokeWidth="3.2" strokeLinejoin="round" strokeLinecap="round">
+        <rect x="30.5" y="6" width="11.5" height="38" rx="5.75" />
+        <rect x="58" y="6" width="11.5" height="38" rx="5.75" />
+        <ellipse cx="50" cy="57" rx="28.5" ry="25" />
+      </g>
+      <rect x="33.6" y="11" width="5.4" height="25" rx="2.7" fill="#F6C6CE" />
+      <rect x="61.1" y="11" width="5.4" height="25" rx="2.7" fill="#F6C6CE" />
+      <CEye x={41} y={53} mood={eyeMood(mood)} size={0.9} />
+      <CEye x={59} y={53} mood={eyeMood(mood)} size={0.9} />
+      <CCheek x={28} y={63} />
+      <CCheek x={55} y={63} />
+      <CMouth x={50} y={62.5} mood={mouthMood(mood, 'grin')} size={0.74} />
+    </g>
+  );
+}
+
+function MomongaArt({ mood }) {
+  return (
+    <g>
+      <path d="M62 80 C82 86 99 71 96 53 C93 35 76 26 65 36 C55 45 60 58 70 58 C78 58 82 50 76 45" fill="#CFE9F7" stroke={INK} strokeWidth="3.2" strokeLinejoin="round" />
+      <path d="M77 71 C88 69 92 59 89 49" fill="none" stroke="#B7DBF0" strokeWidth="2.2" strokeLinecap="round" />
+      <path d="M70 44 C73 41 77 41 79 43" fill="none" stroke="#B7DBF0" strokeWidth="2" strokeLinecap="round" />
+      <g fill="#FFFFFF" stroke={INK} strokeWidth="3.2" strokeLinejoin="round" strokeLinecap="round">
+        <circle cx="29" cy="34" r="7.8" />
+        <circle cx="71" cy="34" r="7.8" />
+        <ellipse cx="50" cy="56" rx="28.5" ry="26" />
+      </g>
+      <CEye x={38.5} y={54} mood={eyeMood(mood)} size={1.12} />
+      <CEye x={61.5} y={54} mood={eyeMood(mood)} size={1.12} />
+      <CCheek x={27} y={66} />
+      <CCheek x={54.5} y={66} />
+      <CMouth x={50} y={66} mood={mouthMood(mood)} size={0.82} />
+    </g>
+  );
+}
+
+function KurimanjuArt({ mood }) {
+  return (
+    <g>
+      <ellipse cx="50" cy="58" rx="28" ry="25" fill="#FFF8EA" stroke={INK} strokeWidth="3.2" />
+      <path d="M22 49 C22 27 34.5 17 50 17 C65.5 17 78 27 78 49 C69 45 60.5 43.4 50 43.4 C39.5 43.4 31 45 22 49 Z" fill="#C98A54" stroke={INK} strokeWidth="3" strokeLinejoin="round" />
+      <g fill="none" stroke="#A96C3D" strokeWidth="2.2" strokeLinecap="round">
+        <path d="M50 18.5 C47 26 42.5 34 34 42.6" />
+        <path d="M50 18.5 C50 27 50 35 50 43.4" />
+        <path d="M50 18.5 C53 26 57.5 34 66 42.6" />
+      </g>
+      <path d="M47 17.5 C47.5 12 51 10.5 53 12.5" fill="none" stroke={INK} strokeWidth="2.8" strokeLinecap="round" />
+      <CEye x={41} y={57} mood={eyeMood(mood)} size={0.88} />
+      <CEye x={59} y={57} mood={eyeMood(mood)} size={0.88} />
+      <CCheek x={29.5} y={67} />
+      <CCheek x={56.5} y={67} />
+      <CMouth x={50} y={67.5} mood={mouthMood(mood)} size={0.88} />
+    </g>
+  );
+}
+
+function RakkoArt({ mood }) {
+  return (
+    <g>
+      <g fill="#EDE1D1" stroke={INK} strokeWidth="3.2" strokeLinejoin="round" strokeLinecap="round">
+        <circle cx="27.5" cy="37" r="7.2" />
+        <circle cx="72.5" cy="37" r="7.2" />
+        <ellipse cx="50" cy="57" rx="29" ry="26" />
+      </g>
+      <g stroke="#A8725F" strokeWidth="2.4" strokeLinecap="round">
+        <line x1="45.5" y1="38" x2="52.5" y2="45" />
+        <line x1="52.5" y1="38" x2="45.5" y2="45" />
+      </g>
+      <CEye x={40.5} y={56} mood={eyeMood(mood, 'serious')} size={0.9} />
+      <CEye x={59.5} y={56} mood={eyeMood(mood, 'serious')} size={0.9} />
+      <CCheek x={30} y={66} />
+      <CCheek x={57} y={66} />
+      <CMouth x={50} y={67} mood={mouthMood(mood, 'flat')} size={0.82} />
+    </g>
+  );
+}
+
+function ShisaArt({ mood }) {
+  return (
+    <g>
+      <path d="M50 15 C58 6.5 71 10 72 21 C84 21 89 35 80.5 43 C88 54 79 66 67 64 C63 76 46 79 40 66.5 C28 70.5 17.5 58 24 47 C15.5 39 21.5 24 33 23.5 C34 12 44 6 50 15 Z" fill="#F3AC6A" stroke={INK} strokeWidth="3" strokeLinejoin="round" />
+      <g fill="none" stroke="#D98F4C" strokeWidth="2.1" strokeLinecap="round">
+        <path d="M50 20 C45 26 39 30 32 31" />
+        <path d="M50 20 C55 26 61 30 68 31" />
+        <path d="M31 44 C26 46 22 45 20 41" />
+        <path d="M69 44 C74 46 78 45 80 41" />
+        <path d="M39 69 C37 73 33 75 29 73" />
+        <path d="M61 69 C63 73 67 75 71 73" />
+      </g>
+      <ellipse cx="50" cy="55.5" rx="21" ry="19.5" fill="#FFF6E7" stroke={INK} strokeWidth="3.2" />
+      <path d={heartPath(39.5, 38.5, 4.3)} fill="#E4715F" />
+      <path d={heartPath(60.5, 38.5, 4.3)} fill="#E4715F" />
+      <CEye x={41} y={50.5} mood={eyeMood(mood)} size={0.78} />
+      <CEye x={59} y={50.5} mood={eyeMood(mood)} size={0.78} />
+      <CCheek x={32.5} y={61} size={0.9} />
+      <CCheek x={55.5} y={61} size={0.9} />
+      <CMouth x={50} y={61} mood={mouthMood(mood)} size={0.76} />
+    </g>
+  );
+}
+
+function KaniArt({ mood }) {
+  return (
+    <g>
+      <g fill="#FFFFFF" stroke={INK} strokeWidth="3.2" strokeLinejoin="round" strokeLinecap="round">
+        <circle cx="27.5" cy="36" r="7.2" />
+        <circle cx="72.5" cy="36" r="7.2" />
+        <ellipse cx="50" cy="58" rx="29" ry="26" />
+      </g>
+      <g stroke="#E58AA8" strokeWidth="4.5" strokeLinecap="round" fill="none">
+        <path d="M27 38 C35 30 65 30 73 38" />
+      </g>
+      <g stroke={INK} strokeWidth="2.4" strokeLinecap="round" fill="none">
+        <path d="M38 30 l-4 5" />
+        <path d="M44 32 l-2.5 5" />
+        <path d="M62 30 l4 5" />
+        <path d="M56 32 l2.5 5" />
+      </g>
+      <g stroke={INK} strokeWidth="2.6" strokeLinejoin="round" strokeLinecap="round" fill="#F59FBB">
+        <path d="M36 21 C28 20 23 15 25 9 C30 5 36 9 37 15 Z" />
+        <path d="M37 25 C31 28 25 26 24 21 C28 18 34 19 37 21 Z" />
+        <path d="M64 21 C72 20 77 15 75 9 C70 5 64 9 63 15 Z" />
+        <path d="M63 25 C69 28 75 26 76 21 C72 18 66 19 63 21 Z" />
+        <ellipse cx="50" cy="24" rx="12.5" ry="8.5" />
+      </g>
+      <circle cx="46" cy="21" r="1.2" fill={INK} />
+      <circle cx="54" cy="21" r="1.2" fill={INK} />
+      <CEye x={40} y={58} mood={eyeMood(mood)} size={0.95} />
+      <CEye x={60} y={58} mood={eyeMood(mood)} size={0.95} />
+      <CCheek x={29} y={68} />
+      <CCheek x={56.5} y={68} />
+      <CMouth x={50} y={68} mood={mouthMood(mood)} size={0.9} />
+    </g>
+  );
+}
+
+const CHAR_ART = { chiikawa: ChiikawaArt, hachiware: HachiwareArt, usagi: UsagiArt, momonga: MomongaArt, kurimanju: KurimanjuArt, rakko: RakkoArt, shisa: ShisaArt, kani: KaniArt };
+
+function CharacterArt({ id, mood = 'idle' }) {
+  const Art = CHAR_ART[id] || CHAR_ART.chiikawa;
+  return (
+    <svg viewBox="0 0 100 100" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg" style={{ display: 'block' }}>
+      <Art mood={mood} />
+      <MoodFlair mood={mood} />
+    </svg>
+  );
+}
+
+/* 이름(캐릭터 id)으로 그리는 먼작귀 초상화 — card=true면 흰 스티커 카드 위에 */
+function ChiikawaAvatar({ id, size = 44, card = false, mood = 'idle', className = '', style }) {
+  const s = Math.round(size);
+  return (
+    <span
+      className={`shrink-0 items-center justify-center ${card ? 'bg-white border border-[#F0E6D4] shadow-[0_2px_8px_rgba(150,125,100,0.16)]' : ''} ${className}`}
+      style={{ display: 'inline-flex', width: s, height: s, borderRadius: Math.round(s * 0.34), padding: card ? Math.max(1, Math.round(s * 0.06)) : 0, ...(style || {}) }}
+    >
+      <CharacterArt id={id} mood={mood} />
+    </span>
+  );
+}
+
+/* 가족 구성원 id로 그리는 얼굴 (설정에서 바꾼 캐릭터 반영, 없으면 기존 이모지) */
+function Ava({ id, chars, size = 44, card = false, mood = 'idle', className = '', style }) {
+  const charId = charOfMember(chars, id);
+  if (!charId) {
+    return (
+      <span className={`shrink-0 inline-flex items-center justify-center ${className}`} style={{ width: size, height: size, fontSize: Math.round(size * 0.78), lineHeight: 1, ...(style || {}) }}>
+        {(M[id] && M[id].avatar) || '🐹'}
+      </span>
+    );
+  }
+  return <ChiikawaAvatar id={charId} size={size} card={card} mood={mood} className={className} style={style} />;
+}
+
+/* 채팅에 붙는 큰 스티커 카드 */
+function StickerCard({ sticker, size = 132 }) {
+  return (
+    <span className="inline-flex flex-col items-center" style={{ width: size }}>
+      <span className="flex items-center justify-center rounded-[1.7rem] bg-white border-2 border-white shadow-[0_8px_22px_rgba(175,145,115,0.22)]" style={{ width: size, height: size }}>
+        <ChiikawaAvatar id={sticker.char} size={size - Math.round(size * 0.1)} mood={sticker.mood} />
+      </span>
+      <span className="mt-1 rounded-full border border-[#F1DFB4] bg-[#FFF5DC] px-2.5 py-0.5 text-[10px] font-extrabold text-[#A87A24]">{sticker.caption}</span>
+    </span>
+  );
+}
+
+/* 캐릭터 도감 (index.html?gallery=1) */
+function CharacterGallery() {
+  const moods = ['idle', 'happy', 'cry', 'love', 'cheer', 'grin'];
+  return (
+    <div className="min-h-[100dvh] bg-[#FEFBEF] px-5 py-6">
+      <div className="mx-auto max-w-[720px]">
+        <h1 className="font-round text-[24px] text-[#4B423A]">🐹 먼작귀 캐릭터 도감</h1>
+        <p className="mt-1 text-[11px] font-bold text-[#A99B8A]">직접 그린 SVG 캐릭터 · 표정 · 채팅 스티커</p>
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          {CHARACTERS.map((c) => (
+            <div key={c.id} className="flex flex-col items-center rounded-[1.3rem] border border-[#F0E7D5] bg-white p-2">
+              <ChiikawaAvatar id={c.id} size={200} />
+              <span className="mt-1 text-[11px] font-extrabold text-[#4B423A]">{c.name}</span>
+              <span className="text-[8.5px] font-bold text-[#B3A695]">{c.note}</span>
+            </div>
+          ))}
+        </div>
+        <h2 className="mt-6 font-round text-[18px] text-[#4B423A]">표정</h2>
+        <div className="mt-2 grid grid-cols-6 gap-2">
+          {CHARACTERS.map((c) => moods.map((mo) => (
+            <div key={c.id + mo} className="flex flex-col items-center rounded-xl border border-[#F0E7D5] bg-white p-1">
+              <ChiikawaAvatar id={c.id} size={56} mood={mo} />
+              <span className="text-[8px] font-bold text-[#B3A695]">{mo}</span>
+            </div>
+          )))}
+        </div>
+        <h2 className="mt-6 font-round text-[18px] text-[#4B423A]">채팅 스티커</h2>
+        <div className="mt-2 flex flex-wrap gap-3">
+          {CHAT_STICKERS.map((s) => <StickerCard key={s.id} sticker={s} size={124} />)}
+        </div>
+      </div>
+    </div>
+  );
+}
+/* ── 먼작귀 캐릭터 모듈 끝 ── */
 
 const MISSIONS = [
   { emoji: '🥕', text: '저녁 준비 다 같이 돕기' },
@@ -118,7 +542,6 @@ const MISSIONS = [
   { emoji: '🧸', text: '동생 장난감 같이 정리해 주기' },
 ];
 
-const STICKERS = ['🥕', '🦸🏻‍♂️', '🧸', '🍎', '🏊‍♀️', '🐹', '🐰', '🐻', '🎈', '🍰', '🌈', '⭐'];
 const EMOJIS = ['❤️', '😊', '🥰', '😆', '🎉', '🍀', '👍', '🙌', '😴', '🍓', '🐷', '🧡'];
 
 /* ────────────────────────── 기본 상태 ────────────────────────── */
@@ -166,6 +589,7 @@ function makeDefault() {
     },
     studyLog: {},
     stamps: { 승우: [], 은우: [], 서우: [] },
+    characters: { ...DEFAULT_CHARS },
     mission: { idx: 0, doneDate: null, count: 0 },
     chats: [
       { id: 'c1', from: '은우', text: '엄마 나 오늘 구몬 다 했어!! ❤️', type: 'text', time: at(8, 12), heart: false },
@@ -188,6 +612,7 @@ function normalizeState(p) {
     money: { ...def.money, ...(s.money || {}) },
     stamps: { ...def.stamps, ...(s.stamps || {}) },
     studyLog: { ...def.studyLog, ...(s.studyLog || {}) },
+    characters: { ...def.characters, ...(s.characters || {}) },
     mission: { ...def.mission, ...(s.mission || {}) },
     tasks: Array.isArray(s.tasks) ? s.tasks : def.tasks,
     study: Array.isArray(s.study) ? s.study : def.study,
@@ -573,7 +998,7 @@ function SegPills({ options, value, onChange, className }) {
   );
 }
 
-function KidSwitch({ value, onChange, ids }) {
+function KidSwitch({ value, onChange, ids, chars }) {
   return (
     <div className="flex gap-1.5">
       {(ids || KIDS).map((id) => {
@@ -587,7 +1012,7 @@ function KidSwitch({ value, onChange, ids }) {
               on ? 'bg-white border-[#B9D3F2] shadow-[0_2px_8px_rgba(150,180,215,.22)]' : 'bg-white/55 border-white/80'
             }`}
           >
-            <span className="text-[16px] leading-none">{m.avatar}</span>
+            <Ava id={id} chars={chars} size={22} />
             <span className={`text-[11.5px] font-extrabold ${on ? 'text-[#4B423A]' : 'text-[#A99B8A]'}`}>{m.name}</span>
           </button>
         );
@@ -678,7 +1103,7 @@ function WeatherCard({ s }) {
   );
 }
 
-function Header({ settings, onSettings, onFullscreen, sync }) {
+function Header({ settings, chars, onSettings, onFullscreen, sync }) {
   const now = new Date();
   const tone = syncTone(sync);
   return (
@@ -686,7 +1111,7 @@ function Header({ settings, onSettings, onFullscreen, sync }) {
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <h1 className="flex items-center gap-1.5 leading-none">
-            <span className="text-[21px]">🐹</span>
+            <ChiikawaAvatar id="chiikawa" size={31} />
             <span className="font-round text-[25px] tracking-tight bg-gradient-to-r from-[#B58A62] via-[#D98BA0] to-[#F294B4] bg-clip-text text-transparent">
               우리 가족 기록장
             </span>
@@ -751,12 +1176,7 @@ function HomeTab({ state, onMemberTap, stampKid, setStampKid, openCalendar, togg
               className="w-full text-left rounded-[1.45rem] bg-white px-3 py-2.5 flex items-center justify-between gap-2 shadow-[0_2px_8px_rgba(150,170,150,0.10)] border border-white press"
             >
               <div className="flex items-center gap-3 min-w-0">
-                <div
-                  className="h-[52px] w-[52px] shrink-0 rounded-[1.05rem] flex items-center justify-center text-[29px] border"
-                  style={{ background: m.tint, borderColor: m.edge }}
-                >
-                  {m.avatar}
-                </div>
+                <Ava id={m.id} chars={state.characters} size={52} card className="rounded-[1.05rem]" />
                 <div className="min-w-0">
                   <div className="text-[16.5px] font-extrabold text-[#4B423A] truncate">{m.name}</div>
                   <div className="mt-0.5 text-[10.5px] font-bold text-[#A79B8B] truncate">{m.subtitle}</div>
@@ -778,8 +1198,8 @@ function HomeTab({ state, onMemberTap, stampKid, setStampKid, openCalendar, togg
       {/* 도장판 */}
       <div className="rounded-[2rem] bg-gradient-to-br from-[#FFFDF3] via-[#FFF9F2] to-[#F2F4FD] border border-[#F1EBDD] p-4 shadow-[0_4px_18px_rgba(185,170,150,0.10)]">
         <div className="flex items-start justify-between gap-2">
-          <h3 className="text-[16px] font-extrabold text-[#4B423A] flex items-center gap-1.5">
-            <span className="text-[17px]">🐹</span> {stampKid} 도장판
+          <h3 aria-label={`${stampKid} 도장판`} className="text-[16px] font-extrabold text-[#4B423A] flex items-center gap-1.5">
+            <Ava id={stampKid} chars={state.characters} size={21} /> {stampKid} 도장판
           </h3>
           <span className={`rounded-full border px-2.5 py-1 text-[10px] font-extrabold whitespace-nowrap ${
             streak > 0 ? 'bg-[#FFF7E4] border-[#F3DFB0] text-[#C08A2E]' : 'bg-white border-[#EFE6D6] text-[#A99B8A]'
@@ -789,7 +1209,7 @@ function HomeTab({ state, onMemberTap, stampKid, setStampKid, openCalendar, togg
         </div>
 
         <div className="mt-2">
-          <KidSwitch value={stampKid} onChange={setStampKid} />
+          <KidSwitch value={stampKid} onChange={setStampKid} chars={state.characters} />
         </div>
 
         <p className="mt-2.5 text-[10.5px] font-bold text-[#A99B8A] leading-relaxed">
@@ -813,7 +1233,7 @@ function HomeTab({ state, onMemberTap, stampKid, setStampKid, openCalendar, togg
                     on ? 'bg-white stamp-ring' : `bg-white/50 border-2 border-dashed ${isToday ? 'border-[#EFD9A6]' : 'border-[#E6DBC7]'}`
                   } ${future ? 'opacity-45' : ''}`}
                 >
-                  {on ? M[stampKid].avatar : ''}
+                  {on ? <Ava id={stampKid} chars={state.characters} size={30} /> : ''}
                 </button>
               </div>
             );
@@ -908,8 +1328,8 @@ function TodoTab({ state, onToggle, onAdd, onEdit, onDelete }) {
           <div key={m.id} className="rounded-[1.7rem] p-3.5 border shadow-[0_3px_14px_rgba(180,160,140,0.09)]" style={{ background: m.tint, borderColor: m.edge }}>
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="h-10 w-10 rounded-[0.9rem] bg-white border flex items-center justify-center text-[22px] shrink-0" style={{ borderColor: m.edge }}>
-                  {m.avatar}
+                <div className="shrink-0 rounded-[0.9rem] bg-white border p-[1px]" style={{ borderColor: m.edge }}>
+                  <Ava id={m.id} chars={state.characters} size={36} />
                 </div>
                 <div className="min-w-0">
                   <div className="text-[14.5px] font-extrabold text-[#4B423A]">{m.name}</div>
@@ -1132,7 +1552,7 @@ function StudyTab({ state, timer, studyFilter, setStudyFilter, onToggle, onPin, 
               studyFilter === m.id ? 'bg-white border-[#B9D3F2] text-[#4B423A] shadow-sm' : 'bg-white/70 border-[#EDE3D2] text-[#A99B8A]'
             }`}
           >
-            <span className="text-[13px]">{m.avatar}</span>{m.name}
+            <span className="text-[13px]"><Ava id={m.id} chars={state.characters} size={18} /></span>{m.name}
           </button>
         ))}
       </div>
@@ -1147,8 +1567,8 @@ function StudyTab({ state, timer, studyFilter, setStudyFilter, onToggle, onPin, 
           <div key={m.id} className="rounded-[1.6rem] bg-white border-2 p-3.5 shadow-[0_3px_14px_rgba(150,180,210,0.10)]" style={{ borderColor: m.edge }}>
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="h-11 w-11 rounded-[0.9rem] border flex items-center justify-center text-[24px] shrink-0" style={{ background: m.tint, borderColor: m.edge }}>
-                  {m.avatar}
+                <div className="h-11 w-11 rounded-[0.9rem] border bg-white flex items-center justify-center shrink-0" style={{ borderColor: m.edge }}>
+                  <Ava id={m.id} chars={state.characters} size={38} />
                 </div>
                 <div className="min-w-0">
                   <div className="text-[15px] font-extrabold text-[#4B423A]">{m.name}</div>
@@ -1249,7 +1669,7 @@ function MoneyTab({ state, moneyKid, setMoneyKid, onChangeStart, onAddEntry, onD
         </div>
 
         <div className="mt-3">
-          <KidSwitch value={moneyKid} onChange={setMoneyKid} />
+          <KidSwitch value={moneyKid} onChange={setMoneyKid} chars={state.characters} />
         </div>
 
         <div className="mt-3.5 flex items-end justify-between gap-2">
@@ -1373,10 +1793,10 @@ function ChatTab({ state, chatAs, setChatAs, locked, onSend, onHeart, onDelete, 
     if (el) el.scrollTop = el.scrollHeight;
   }, [state.chats.length, chatAs]);
 
-  const send = (text, type) => {
+  const send = (text, type, sticker) => {
     if (locked) { onToast('🔒 이 기기가 잠겨 있어요. 잠금을 풀어 주세요'); return; }
     if (!text || !text.trim()) return;
-    onSend(text, type || 'text');
+    onSend(text, type || 'text', sticker || null);
     setDraft('');
     setPicker(null);
   };
@@ -1414,7 +1834,7 @@ function ChatTab({ state, chatAs, setChatAs, locked, onSend, onHeart, onDelete, 
                 chatAs === m.id ? 'bg-white border-[#B9D3F2] shadow-[0_2px_8px_rgba(150,180,215,.2)]' : 'bg-white/60 border-white/80'
               }`}
             >
-              <span className="text-[15px] leading-none">{m.avatar}</span>
+              <span className="text-[15px] leading-none"><Ava id={m.id} chars={state.characters} size={21} /></span>
               <span className={`text-[10.5px] font-extrabold ${chatAs === m.id ? 'text-[#4B423A]' : 'text-[#A99B8A]'}`}>{m.name}</span>
             </button>
           ))}
@@ -1447,7 +1867,7 @@ function ChatTab({ state, chatAs, setChatAs, locked, onSend, onHeart, onDelete, 
 
               <div className={`flex items-end gap-1.5 mt-1.5 ${mine ? 'justify-end' : 'justify-start'}`}>
                 {!mine ? (
-                  <div className="mb-[26px] h-8 w-8 shrink-0 rounded-[0.7rem] bg-white border border-[#F0E7D7] flex items-center justify-center text-[17px]">{who.avatar}</div>
+                  <Ava id={c.from} chars={state.characters} size={30} card className="mb-[26px] rounded-[0.7rem]" />
                 ) : null}
 
                 <div className={`max-w-[76%] ${mine ? 'items-end' : 'items-start'} flex flex-col`}>
@@ -1458,17 +1878,21 @@ function ChatTab({ state, chatAs, setChatAs, locked, onSend, onHeart, onDelete, 
                     </div>
                   ) : null}
 
-                  <div
-                    className={`px-3 py-2 rounded-[1.1rem] border shadow-sm ${
-                      c.type === 'sticker'
-                        ? 'bg-transparent border-0 shadow-none text-[46px] leading-none px-0 py-0'
-                        : mine
-                          ? 'bg-[#F3F8FE] border-[#DCE9F8] text-[#3F4A57]'
-                          : 'bg-white border-[#F1E8D8] text-[#3F4A57]'
-                    }`}
-                  >
-                    <span className={`${c.type === 'sticker' ? '' : 'text-[12px] font-semibold leading-relaxed'} whitespace-pre-wrap break-words`}>{c.text}</span>
-                  </div>
+                  {stickerOf(c.sticker) ? (
+                    <StickerCard sticker={stickerOf(c.sticker)} size={132} />
+                  ) : (
+                    <div
+                      className={`px-3 py-2 rounded-[1.1rem] border shadow-sm ${
+                        c.type === 'sticker'
+                          ? 'bg-transparent border-0 shadow-none text-[46px] leading-none px-0 py-0'
+                          : mine
+                            ? 'bg-[#F3F8FE] border-[#DCE9F8] text-[#3F4A57]'
+                            : 'bg-white border-[#F1E8D8] text-[#3F4A57]'
+                      }`}
+                    >
+                      <span className={`${c.type === 'sticker' ? '' : 'text-[12px] font-semibold leading-relaxed'} whitespace-pre-wrap break-words`}>{c.text}</span>
+                    </div>
+                  )}
 
                   <div className={`mt-1 flex items-center gap-1 ${mine ? 'justify-end pr-0.5' : 'pl-0.5'}`}>
                     {mine ? <span className="text-[8.5px] font-bold text-[#BCAE9C] mr-0.5">{fmtTime(c.time)}</span> : null}
@@ -1483,7 +1907,7 @@ function ChatTab({ state, chatAs, setChatAs, locked, onSend, onHeart, onDelete, 
                 </div>
 
                 {mine ? (
-                  <div className="mb-[26px] h-8 w-8 shrink-0 rounded-[0.7rem] bg-white border border-[#F0E7D7] flex items-center justify-center text-[17px]">{who.avatar}</div>
+                  <Ava id={c.from} chars={state.characters} size={30} card className="mb-[26px] rounded-[0.7rem]" />
                 ) : null}
               </div>
             </div>
@@ -1519,17 +1943,34 @@ function ChatTab({ state, chatAs, setChatAs, locked, onSend, onHeart, onDelete, 
                   🧸 스티커
                 </button>
               </div>
-              <div className="grid grid-cols-6 gap-1">
-                {(picker === 'emoji' ? EMOJIS : STICKERS).map((e) => (
-                  <button
-                    key={e}
-                    onClick={() => (picker === 'emoji' ? setDraft((d) => d + e) : send(e, 'sticker'))}
-                    className={`rounded-xl py-2 text-[20px] press ${picker === 'sticker' ? 'bg-[#FFFBF0]' : ''}`}
-                  >
-                    {e}
-                  </button>
-                ))}
-              </div>
+              {picker === 'emoji' ? (
+                <div className="grid grid-cols-6 gap-1">
+                  {EMOJIS.map((e) => (
+                    <button
+                      key={e}
+                      onClick={() => setDraft((d) => d + e)}
+                      className="rounded-xl py-2 text-[20px] press"
+                    >
+                      {e}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-1.5">
+                  {CHAT_STICKERS.map((st) => (
+                    <button
+                      key={st.id}
+                      onClick={() => send(st.label, 'sticker', st.id)}
+                      aria-label={st.label}
+                      title={st.label}
+                      className="rounded-2xl border border-[#F2E7D4] bg-[#FFFBF0] py-1.5 flex flex-col items-center press"
+                    >
+                      <ChiikawaAvatar id={st.char} size={58} mood={st.mood} />
+                      <span className="mt-0.5 w-full px-0.5 text-center text-[8.5px] font-extrabold leading-tight text-[#A87A24]">{st.short || st.label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           ) : null}
 
@@ -1562,7 +2003,7 @@ function ChatTab({ state, chatAs, setChatAs, locked, onSend, onHeart, onDelete, 
 }
 
 /* ────────────────────────── 도장판 달력 ────────────────────────── */
-function StampCalendar({ kid, stamps, onToggle }) {
+function StampCalendar({ kid, stamps, onToggle, chars }) {
   const today = new Date();
   const [cursor, setCursor] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
   const y = cursor.getFullYear();
@@ -1604,7 +2045,7 @@ function StampCalendar({ kid, stamps, onToggle }) {
               } ${isToday ? 'ring-2 ring-[#FFE1A8]' : ''} ${future ? 'opacity-40' : ''}`}
             >
               <span className={`text-[8.5px] font-extrabold ${on ? 'text-[#7E9BC4]' : 'text-[#C2B5A3]'}`}>{d.getDate()}</span>
-              <span className="text-[13px] leading-none">{on ? M[kid].avatar : ''}</span>
+              <span className="leading-none flex items-center justify-center h-[18px]">{on ? <Ava id={kid} chars={chars} size={18} /> : ''}</span>
               {!on ? <span className="absolute inset-x-2.5 bottom-2 border-b border-dashed border-[#EADFCB]"></span> : null}
             </button>
           );
@@ -1618,7 +2059,7 @@ function StampCalendar({ kid, stamps, onToggle }) {
 }
 
 /* ────────────────────────── 시트(모달)들 ────────────────────────── */
-function TaskSheet({ open, mode, initialOwner, initialText, initialReward, onClose, onSave }) {
+function TaskSheet({ open, mode, initialOwner, initialText, initialReward, onClose, onSave, chars }) {
   const [owner, setOwner] = useState(initialOwner || '승우');
   const [text, setText] = useState(initialText || '');
   const [reward, setReward] = useState(initialReward == null ? 100 : initialReward);
@@ -1651,7 +2092,7 @@ function TaskSheet({ open, mode, initialOwner, initialText, initialReward, onClo
                   owner === m.id ? 'bg-white border-[#D9C4A5] text-[#4B423A] shadow-sm' : 'bg-white/60 border-[#EDE3D2] text-[#A99B8A]'
                 }`}
               >
-                <span className="text-[15px]">{m.avatar}</span>{m.name}
+                <Ava id={m.id} chars={chars} size={21} />{m.name}
               </button>
             ))}
           </div>
@@ -1682,7 +2123,7 @@ function TaskSheet({ open, mode, initialOwner, initialText, initialReward, onClo
   );
 }
 
-function StudySheet({ open, mode, initial, onClose, onSave }) {
+function StudySheet({ open, mode, initial, onClose, onSave, chars }) {
   const [owner, setOwner] = useState((initial && initial.owner) || '승우');
   const [text, setText] = useState((initial && initial.text) || '');
   const [tag, setTag] = useState((initial && initial.tag) || '');
@@ -1719,7 +2160,7 @@ function StudySheet({ open, mode, initial, onClose, onSave }) {
                   owner === m.id ? 'bg-white border-[#B9D3F2] text-[#3F6E9E] shadow-sm' : 'bg-white/60 border-[#E9EFF6] text-[#A99B8A]'
                 }`}
               >
-                <span className="text-[15px]">{m.avatar}</span>{m.name}
+                <Ava id={m.id} chars={chars} size={21} />{m.name}
               </button>
             ))}
           </div>
@@ -1785,6 +2226,8 @@ function App() {
   const [moneyKid, setMoneyKid] = useState('승우');
   const [studyFilter, setStudyFilter] = useState('전체');
   const [sheet, setSheet] = useState(null);
+  /* 설정에서 캐릭터를 바꾸는 가족 (시트에서 고른다) */
+  const [charFor, setCharFor] = useState('승우');
   const [taskModal, setTaskModal] = useState(null);
   const [studyModal, setStudyModal] = useState(null);
   const [toast, setToast] = useState(null);
@@ -1954,10 +2397,10 @@ function App() {
   };
 
   /* ── 채팅 ── */
-  const sendChat = (text, type) => {
+  const sendChat = (text, type, sticker) => {
     setState((s) => ({
       ...s,
-      chats: [...s.chats, { id: uid('c'), from: chatAs, text, type: type || 'text', time: new Date().toISOString(), heart: false }],
+      chats: [...s.chats, { id: uid('c'), from: chatAs, text, type: type || 'text', sticker: sticker || null, time: new Date().toISOString(), heart: false }],
     }));
   };
   const heartChat = (id) => setState((s) => ({ ...s, chats: s.chats.map((c) => (c.id === id ? { ...c, heart: !c.heart } : c)) }));
@@ -1969,6 +2412,12 @@ function App() {
   const toggleLock = () => {
     setDevice((d) => ({ ...d, chatLocked: !d.chatLocked }));
     showToast(chatLocked ? '🔓 잠금을 풀었어요' : '🔒 이 기기를 잠갔어요');
+  };
+
+  /* ── 캐릭터 ── */
+  const setCharacter = (memberId, charId) => {
+    setState((s) => ({ ...s, characters: { ...(s.characters || {}), [memberId]: charId } }));
+    showToast(`${memberId}는 ${charName(charId)}와 함께해요`);
   };
 
   /* ── 설정 ── */
@@ -2015,12 +2464,12 @@ function App() {
   return (
     <div className="min-h-[100dvh] w-full flex justify-center">
       <div className="relative w-full max-w-[460px] h-[100dvh] sm:h-[calc(100dvh-28px)] sm:my-3.5 bg-[#FEFBEF] flex flex-col overflow-hidden sm:rounded-[2.4rem] sm:border sm:border-white sm:shadow-[0_24px_70px_rgba(150,120,90,0.28)]">
-        {tab === 'chat' ? <Header settings={state.settings} sync={sync} onSettings={() => setSheet('settings')} onFullscreen={toggleFullscreen} /> : null}
+        {tab === 'chat' ? <Header settings={state.settings} chars={state.characters} sync={sync} onSettings={() => setSheet('settings')} onFullscreen={toggleFullscreen} /> : null}
 
         <main className="flex-1 min-h-0 flex flex-col">
           {tab === 'chat' ? null : (
             <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
-              <Header settings={state.settings} sync={sync} onSettings={() => setSheet('settings')} onFullscreen={toggleFullscreen} />
+              <Header settings={state.settings} chars={state.characters} sync={sync} onSettings={() => setSheet('settings')} onFullscreen={toggleFullscreen} />
               <div className="px-4 pb-4">
               {tab === 'home' ? (
                 <HomeTab
@@ -2267,10 +2716,15 @@ function App() {
                 <div className="mt-2 space-y-1.5">
                   {MEMBERS.map((m) => (
                     <div key={m.id} className="flex items-center gap-2">
-                      <span className="text-[15px]">{m.avatar}</span>
+                      <Ava id={m.id} chars={state.characters} size={24} />
                       <span className="text-[11px] font-extrabold text-[#4B423A] w-9">{m.name}</span>
                       <span className="text-[10px] font-bold text-[#A99B8A] flex-1 truncate">{m.subtitle}</span>
-                      {m.kid ? <span className="text-[9.5px] font-extrabold text-[#8B7444]">시작 {won((state.money[m.id] || {}).start || 0)}원</span> : null}
+                      <button
+                        onClick={() => { setCharFor(m.id); setSheet('character'); }}
+                        className="shrink-0 rounded-full border border-[#EDE3D2] bg-white px-2 py-1 text-[9px] font-extrabold text-[#8A7C66] press whitespace-nowrap"
+                      >
+                        {charName(charOfMember(state.characters, m.id)) || '캐릭터'} ✎
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -2282,9 +2736,54 @@ function App() {
         {sheet === 'calendar' ? (
           <Sheet title={`${stampKid} 도장판 달력`} subtitle="도장을 찍은 날을 한눈에 볼 수 있어요" onClose={() => setSheet(null)}>
             <div className="mb-3">
-              <KidSwitch value={stampKid} onChange={setStampKid} />
+              <KidSwitch value={stampKid} onChange={setStampKid} chars={state.characters} />
             </div>
-            <StampCalendar kid={stampKid} stamps={state.stamps[stampKid] || []} onToggle={toggleStamp} />
+            <StampCalendar kid={stampKid} stamps={state.stamps[stampKid] || []} onToggle={toggleStamp} chars={state.characters} />
+          </Sheet>
+        ) : null}
+
+        {sheet === 'character' ? (
+          <Sheet
+            title={`${charFor}의 먼작귀 친구`}
+            subtitle="가족마다 좋아하는 캐릭터를 골라 주세요 · 고른 캐릭터는 가족 모두에게 함께 보여요"
+            onClose={() => setSheet(null)}
+          >
+            <div className="mb-3 flex gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+              {MEMBERS.map((m) => (
+                <button
+                  key={m.id}
+                  onClick={() => setCharFor(m.id)}
+                  className={`shrink-0 flex items-center gap-1 rounded-full pl-1 pr-2.5 py-1 border press ${
+                    charFor === m.id ? 'bg-white border-[#D9C4A5] shadow-sm' : 'bg-white/60 border-[#EDE3D2]'
+                  }`}
+                >
+                  <Ava id={m.id} chars={state.characters} size={22} />
+                  <span className={`text-[10.5px] font-extrabold ${charFor === m.id ? 'text-[#4B423A]' : 'text-[#A99B8A]'}`}>{m.name}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              {CHARACTERS.map((c) => {
+                const on = charOfMember(state.characters, charFor) === c.id;
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => setCharacter(charFor, c.id)}
+                    className={`rounded-[1.3rem] border p-2 flex flex-col items-center press ${
+                      on ? 'border-[#F0C86A] bg-[#FFF9E8] shadow-[0_3px_12px_rgba(230,190,120,.25)]' : 'border-[#F1E7D6] bg-white'
+                    }`}
+                  >
+                    <ChiikawaAvatar id={c.id} size={62} mood={on ? 'happy' : 'idle'} />
+                    <span className={`mt-1 text-[11px] font-extrabold ${on ? 'text-[#A9791F]' : 'text-[#4B423A]'}`}>{c.name}</span>
+                    <span className="text-[8.5px] font-bold leading-tight text-center text-[#B3A695]">{c.note}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-3 rounded-2xl border border-[#F1E9DA] bg-[#FFFDF6] px-3 py-2 text-[9.5px] font-bold leading-relaxed text-[#B0A392]">
+              도장판·할 일·공부·채팅 어디서든 고른 캐릭터로 보여요. 채팅 스티커도 먼작귀 친구들이에요.
+            </p>
           </Sheet>
         ) : null}
 
@@ -2333,7 +2832,7 @@ function App() {
                 return (
                   <div key={m.id} className="rounded-[1.2rem] border border-[#F1E9DA] bg-white p-2.5">
                     <p className="text-[10.5px] font-extrabold text-[#8A7A64] flex items-center gap-1">
-                      <span className="text-[14px]">{m.avatar}</span>{m.name}
+                      <Ava id={m.id} chars={state.characters} size={18} />{m.name}
                     </p>
                     <div className="mt-1.5 space-y-1">
                       {items.map((s) => (
@@ -2360,6 +2859,7 @@ function App() {
         ) : null}
 
         <TaskSheet
+          chars={state.characters}
           open={!!taskModal}
           mode={taskModal ? taskModal.mode : 'add'}
           initialOwner={taskModal && taskModal.task ? taskModal.task.owner : (taskModal ? taskModal.owner : '승우')}
@@ -2370,6 +2870,7 @@ function App() {
         />
 
         <StudySheet
+          chars={state.characters}
           open={!!studyModal}
           mode={studyModal ? studyModal.mode : 'add'}
           initial={studyModal ? studyModal.initial : null}
@@ -2402,7 +2903,8 @@ function ResetButton({ onReset }) {
   );
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+const SHOW_GALLERY = window.location.search.indexOf('gallery=1') >= 0;
+ReactDOM.createRoot(document.getElementById('root')).render(SHOW_GALLERY ? <CharacterGallery /> : <App />);
 </script>
 </body>
 </html>
