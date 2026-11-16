@@ -150,6 +150,8 @@ const charOfMember = (chars, id) => {
   return pick && CHAR[pick] ? pick : null;
 };
 
+const charName = (id) => (CHAR[id] ? CHAR[id].name : '');
+
 const heartPath = (x, y, s) =>
   `M${x} ${y + s * 0.95} C${x - s * 1.45} ${y - s * 0.05} ${x - s * 0.85} ${y - s * 1.2} ${x} ${y - s * 0.35} C${x + s * 0.85} ${y - s * 1.2} ${x + s * 1.45} ${y - s * 0.05} ${x} ${y + s * 0.95} Z`;
 const starPath = (x, y, s) =>
