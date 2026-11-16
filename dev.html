@@ -1973,6 +1973,8 @@ function ChatTab({ state, chatAs, setChatAs, locked, onSend, onHeart, onDelete, 
                     <button
                       key={st.id}
                       onClick={() => send(st.label, 'sticker', st.id)}
+                      aria-label={st.label}
+                      title={st.label}
                       className="rounded-2xl border border-[#F2E7D4] bg-[#FFFBF0] py-1.5 flex flex-col items-center press"
                     >
                       <ChiikawaAvatar id={st.char} size={58} mood={st.mood} />
