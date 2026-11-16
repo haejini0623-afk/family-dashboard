@@ -87,9 +87,29 @@
   window.addEventListener('error', function (e) { __showErr((e && e.message) || 'unknown'); });
   window.addEventListener('unhandledrejection', function (e) { __showErr('promise: ' + ((e.reason && e.reason.message) || e.reason)); });
 </script>
+<script>
+window.addEventListener('load', function () {
+  setTimeout(function () {
+    var el = document.getElementById('jsx-src');
+    if (!el || !window.Babel) return;
+    try {
+      Babel.transform(el.textContent, { presets: [['react', { runtime: 'classic' }]] });
+      var box = document.getElementById('boot-error');
+      box.style.display = 'block';
+      box.style.background = '#2E7D46';
+      box.textContent = 'JSX OK — no syntax error';
+      setTimeout(function () { box.style.display = 'none'; }, 4000);
+    } catch (e) {
+      var box2 = document.getElementById('boot-error');
+      box2.style.display = 'block';
+      box2.textContent = 'JSX ERROR: ' + e.message;
+    }
+  }, 400);
+});
+</script>
 
 
-<script type="text/babel" data-presets="react-classic">
+<script id="jsx-src" type="text/babel" data-presets="react-classic">
 const { useState, useEffect, useMemo, useRef } = React;
 
 /* ────────────────────────── 기본 상수 ────────────────────────── */
