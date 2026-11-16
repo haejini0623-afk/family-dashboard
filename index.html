@@ -1261,6 +1261,7 @@ function WeatherCard({ s, live }) {
     : s.sky.includes('구름') ? '🌤️'
     : '☀️');
   const temp = Math.round(pickNum(on ? w.temp : null, s.temp));
+  const region = on ? WX_REGION : (s.region || WX_REGION);
   const low = Math.round(pickNum(on ? w.low : null, s.low));
   const high = Math.round(pickNum(on ? w.high : null, s.high));
   const dust = (on && dustLabel(w.pm10, 'pm10')) || s.dust;
@@ -1274,7 +1275,7 @@ function WeatherCard({ s, live }) {
     <div className="mt-2.5 rounded-[1.3rem] border border-white bg-gradient-to-br from-[#EFF8FD] via-[#FBFCF6] to-[#FFF7E9] px-3.5 py-3 shadow-[0_4px_16px_rgba(160,180,190,0.16)]">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <span className="text-[20px] leading-none">{icon}</span>
-        <span className="text-[15px] font-extrabold text-[#4B423A]">{WX_REGION} {temp}°</span>
+        <span className="text-[15px] font-extrabold text-[#4B423A]">{region} {temp}°</span>
         <span className="text-[12px] font-bold text-[#8E8578]">{sky}</span>
         <span className="text-[10.5px] font-bold text-[#B0A596]">최저 {low}° · 최고 {high}°</span>
         <span className={`ml-auto rounded-full border px-2.5 py-1 text-[10px] font-extrabold ${dustTone(dust)}`}>미세먼지 {dust}</span>
