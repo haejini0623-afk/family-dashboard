@@ -134,12 +134,12 @@ const CHARACTERS = [
 const CHAR = Object.fromEntries(CHARACTERS.map((c) => [c.id, c]));
 
 const CHAT_STICKERS = [
-  { id: 'hachiware-cry', char: 'hachiware', mood: 'cry', label: '하치와레 눈물', caption: '왈칵…' },
-  { id: 'chiikawa-cheer', char: 'chiikawa', mood: 'cheer', label: '치이카와 응원', caption: '힘내자!' },
-  { id: 'usagi-yaha', char: 'usagi', mood: 'grin', label: '우사기 야하!', caption: '야하—!' },
-  { id: 'momonga-love', char: 'momonga', mood: 'love', label: '모몽가 귀여워', caption: '귀여워~' },
-  { id: 'kurimanju-cheers', char: 'kurimanju', mood: 'happy', label: '쿠리만쥬 건배', caption: '짠!' },
-  { id: 'rakko-best', char: 'rakko', mood: 'cheer', label: '라코 최고', caption: '최고야' },
+  { id: 'hachiware-cry', char: 'hachiware', mood: 'cry', label: '하치와레 눈물', short: '눈물', caption: '왈칵…' },
+  { id: 'chiikawa-cheer', char: 'chiikawa', mood: 'cheer', label: '치이카와 응원', short: '응원', caption: '힘내자!' },
+  { id: 'usagi-yaha', char: 'usagi', mood: 'grin', label: '우사기 야하!', short: '야하!', caption: '야하—!' },
+  { id: 'momonga-love', char: 'momonga', mood: 'love', label: '모몽가 귀여워', short: '귀여워', caption: '귀여워~' },
+  { id: 'kurimanju-cheers', char: 'kurimanju', mood: 'happy', label: '쿠리만쥬 건배', short: '건배', caption: '짠!' },
+  { id: 'rakko-best', char: 'rakko', mood: 'cheer', label: '라코 최고', short: '최고', caption: '최고야' },
 ];
 const stickerOf = (id) => CHAT_STICKERS.find((s) => s.id === id) || null;
 
@@ -1976,7 +1976,7 @@ function ChatTab({ state, chatAs, setChatAs, locked, onSend, onHeart, onDelete, 
                       className="rounded-2xl border border-[#F2E7D4] bg-[#FFFBF0] py-1.5 flex flex-col items-center press"
                     >
                       <ChiikawaAvatar id={st.char} size={58} mood={st.mood} />
-                      <span className="mt-0.5 w-full px-0.5 text-center text-[8.5px] font-extrabold leading-tight text-[#A87A24]">{st.label}</span>
+                      <span className="mt-0.5 w-full px-0.5 text-center text-[8.5px] font-extrabold leading-tight text-[#A87A24]">{st.short || st.label}</span>
                     </button>
                   ))}
                 </div>
@@ -2733,7 +2733,7 @@ function App() {
                         onClick={() => { setCharFor(m.id); setSheet('character'); }}
                         className="shrink-0 rounded-full border border-[#EDE3D2] bg-white px-2 py-1 text-[9px] font-extrabold text-[#8A7C66] press whitespace-nowrap"
                       >
-                        {charName(charOfMember(state.characters, m.id)) || '캐릭터'} · 바꾸기
+                        {charName(charOfMember(state.characters, m.id)) || '캐릭터'} ✎
                       </button>
                     </div>
                   ))}
