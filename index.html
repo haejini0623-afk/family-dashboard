@@ -1124,31 +1124,173 @@ function useTimer() {
   return { mode, setMode, minutes, remaining, elapsed, running, finished, start, pause, reset, preset, applyCustom, display };
 }
 
+/* ────────────────────────── 실시간 날씨 · 미세먼지 (의령군 · Open-Meteo) ────────────────────────── */
+/* 열쇠(키) 없이 쓸 수 있는 무료 API 두 개(날씨 예보 · 대기질)를 브라우저에서 직접 불러온다 */
+const WX_REGION = '의령군';
+const WX_FORECAST_URL = 'https://api.open-meteo.com/v1/forecast?latitude=35.322&longitude=128.261&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Asia%2FSeoul&forecast_days=1';
+const WX_AIR_URL = 'https://air-quality-api.open-meteo.com/v1/air-quality?latitude=35.322&longitude=128.261&current=pm10,pm2_5&timezone=Asia%2FSeoul';
+const WX_REFRESH_MS = 30 * 60 * 1000;
+
+const orNull = (v) => {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  return isFinite(n) ? n : null;
+};
+const firstNum = (v) => (Array.isArray(v) ? orNull(v[0]) : orNull(v));
+const pickNum = (v, fallback) => (v === null || v === undefined ? fallback : v);
+
+/* WMO 날씨 코드 → 이모지 · 한글 이름 (비나 눈이 오는 코드인지도 함께 알려 준다) */
+function wmoSky(code) {
+  const c = orNull(code);
+  if (c === null) return { icon: '☀️', label: '맑음', wet: false };
+  if (c === 0) return { icon: '☀️', label: '맑음', wet: false };
+  if (c === 1) return { icon: '🌤️', label: '대체로 맑음', wet: false };
+  if (c === 2) return { icon: '🌤️', label: '구름조금', wet: false };
+  if (c === 3) return { icon: '☁️', label: '흐림', wet: false };
+  if (c === 45 || c === 48) return { icon: '🌫️', label: '안개', wet: false };
+  if (c >= 51 && c <= 57) return { icon: '🌦️', label: '이슬비', wet: true };
+  if ((c >= 61 && c <= 67) || (c >= 80 && c <= 82)) return { icon: '🌧️', label: '비', wet: true };
+  if ((c >= 71 && c <= 77) || c === 85 || c === 86) return { icon: '🌨️', label: '눈', wet: true };
+  if (c >= 95) return { icon: '⛈️', label: '뇌우', wet: true };
+  return { icon: '☀️', label: '맑음', wet: false };
+}
+
+/* 미세먼지 농도(㎍/㎥) → 좋음 / 보통 / 나쁨 / 매우나쁨 */
+function dustLabel(v, kind) {
+  const n = orNull(v);
+  if (n === null) return null;
+  const t = kind === 'pm25' ? [15, 35, 75] : [30, 80, 150];
+  if (n <= t[0]) return '좋음';
+  if (n <= t[1]) return '보통';
+  if (n <= t[2]) return '나쁨';
+  return '매우나쁨';
+}
+
+/* 오른쪽 한마디 — 마스크 · 우산 · 따뜻하게 · 외출하기 좋아요 */
+function weatherTip({ pm10, pm25, wet, pop, temp }) {
+  if ((pm10 !== null && pm10 !== undefined && pm10 > 80) || (pm25 !== null && pm25 !== undefined && pm25 > 35)) return '😷 마스크 챙겨요';
+  if (wet || (pop !== null && pop !== undefined && pop >= 50)) return '☂️ 우산 챙겨요';
+  if (temp !== null && temp !== undefined && temp <= 5) return '🧣 따뜻하게 입어요';
+  return '✨ 외출하기 좋아요';
+}
+
+/* 의령군 날씨·대기질을 불러온다. 화면을 열 때 한 번, 그 뒤 30분마다, 화면으로 다시 돌아올 때도 새로 고친다 */
+function useLiveWeather() {
+  const [w, setW] = useState({ ready: false, failed: false, at: null });
+
+  useEffect(() => {
+    let alive = true;
+    let timer = null;
+    let retry = null;
+
+    const getJSON = async (url) => {
+      const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      const abort = ctrl ? setTimeout(() => ctrl.abort(), 12000) : null;
+      try {
+        const res = await fetch(url, { cache: 'no-store', signal: ctrl ? ctrl.signal : undefined });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return await res.json();
+      } finally {
+        if (abort) clearTimeout(abort);
+      }
+    };
+
+    const load = async () => {
+      const [f, a] = await Promise.all([
+        getJSON(WX_FORECAST_URL).catch(() => null),
+        getJSON(WX_AIR_URL).catch(() => null),
+      ]);
+      if (!alive) return;
+      if (!f && !a) {
+        /* 하나도 못 받아 왔으면 지난 값을 그대로 두고 표시만 바꾼다. 1분 뒤에 한 번 더 시도한다 */
+        setW((p) => ({ ...p, failed: true }));
+        if (retry) clearTimeout(retry);
+        retry = setTimeout(load, 60 * 1000);
+        return;
+      }
+      const cur = (f && f.current) || {};
+      const day = (f && f.daily) || {};
+      const air = (a && a.current) || {};
+      const sky = wmoSky(cur.weather_code);
+      setW((p) => ({
+        ready: true,
+        failed: false,
+        at: Date.now(),
+        icon: f ? sky.icon : p.icon,
+        sky: f ? sky.label : p.sky,
+        wet: f ? sky.wet : p.wet,
+        temp: f ? orNull(cur.temperature_2m) : p.temp,
+        low: f ? firstNum(day.temperature_2m_min) : p.low,
+        high: f ? firstNum(day.temperature_2m_max) : p.high,
+        pop: f ? firstNum(day.precipitation_probability_max) : p.pop,
+        pm10: a ? orNull(air.pm10) : p.pm10,
+        pm25: a ? orNull(air.pm2_5) : p.pm25,
+      }));
+    };
+
+    load();
+    timer = setInterval(load, WX_REFRESH_MS);
+    const onVisible = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') load();
+    };
+    try {
+      document.addEventListener('visibilitychange', onVisible);
+    } catch (e) { /* 무시 */ }
+
+    return () => {
+      alive = false;
+      if (timer) clearInterval(timer);
+      if (retry) clearTimeout(retry);
+      try {
+        document.removeEventListener('visibilitychange', onVisible);
+      } catch (e) { /* 무시 */ }
+    };
+  }, []);
+
+  return w;
+}
+
 /* ────────────────────────── 헤더 ────────────────────────── */
-function WeatherCard({ s }) {
-  const icon = s.sky.includes('비') ? '🌧️'
+function WeatherCard({ s, live }) {
+  const w = live || {};
+  const on = !!w.ready;
+  const sky = (on && w.sky) || s.sky;
+  const icon = (on && w.icon) || (s.sky.includes('비') ? '🌧️'
     : s.sky.includes('눈') ? '❄️'
     : s.sky.includes('흐림') ? '☁️'
     : s.sky.includes('구름') ? '🌤️'
-    : '☀️';
+    : '☀️');
+  const temp = Math.round(pickNum(on ? w.temp : null, s.temp));
+  const low = Math.round(pickNum(on ? w.low : null, s.low));
+  const high = Math.round(pickNum(on ? w.high : null, s.high));
+  const dust = (on && dustLabel(w.pm10, 'pm10')) || s.dust;
+  const dust2 = (on && dustLabel(w.pm25, 'pm25')) || s.dust2;
+  const tip = on
+    ? weatherTip({ pm10: w.pm10, pm25: w.pm25, wet: !!w.wet, pop: w.pop, temp: w.temp })
+    : `😷 ${s.mask || '마스크 챙겨요'}`;
+  const at = on && w.at ? new Date(w.at) : null;
+  const caption = at && !w.failed ? `${pad2(at.getHours())}:${pad2(at.getMinutes())} 기준` : (on ? '지난 값' : '불러오는 중');
   return (
     <div className="mt-2.5 rounded-[1.3rem] border border-white bg-gradient-to-br from-[#EFF8FD] via-[#FBFCF6] to-[#FFF7E9] px-3.5 py-3 shadow-[0_4px_16px_rgba(160,180,190,0.16)]">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <span className="text-[20px] leading-none">{icon}</span>
-        <span className="text-[15px] font-extrabold text-[#4B423A]">{s.region} {s.temp}°</span>
-        <span className="text-[12px] font-bold text-[#8E8578]">{s.sky}</span>
-        <span className="text-[10.5px] font-bold text-[#B0A596]">최저 {s.low}° · 최고 {s.high}°</span>
-        <span className={`ml-auto rounded-full border px-2.5 py-1 text-[10px] font-extrabold ${dustTone(s.dust)}`}>미세먼지 {s.dust}</span>
+        <span className="text-[15px] font-extrabold text-[#4B423A]">{WX_REGION} {temp}°</span>
+        <span className="text-[12px] font-bold text-[#8E8578]">{sky}</span>
+        <span className="text-[10.5px] font-bold text-[#B0A596]">최저 {low}° · 최고 {high}°</span>
+        <span className={`ml-auto rounded-full border px-2.5 py-1 text-[10px] font-extrabold ${dustTone(dust)}`}>미세먼지 {dust}</span>
       </div>
       <div className="mt-2 flex items-center justify-between gap-2">
-        <span className={`rounded-full border px-2.5 py-1 text-[10px] font-extrabold ${dustTone(s.dust2)}`}>초미세먼지 {s.dust2}</span>
-        <span className="rounded-full border border-[#EFE6D2] bg-white px-2.5 py-1 text-[10px] font-extrabold text-[#8A7C66]">😷 {s.mask}</span>
+        <span className={`rounded-full border px-2.5 py-1 text-[10px] font-extrabold ${dustTone(dust2)}`}>초미세먼지 {dust2}</span>
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span className="shrink-0 text-[9px] font-bold text-[#BDB2A2]">{caption}</span>
+          <span className="rounded-full border border-[#EFE6D2] bg-white px-2.5 py-1 text-[10px] font-extrabold text-[#8A7C66]">{tip}</span>
+        </div>
       </div>
     </div>
   );
 }
 
-function Header({ settings, chars, onSettings, onFullscreen, sync }) {
+function Header({ settings, chars, onSettings, onFullscreen, sync, weather }) {
   const now = new Date();
   const tone = syncTone(sync);
   return (
@@ -1191,7 +1333,7 @@ function Header({ settings, chars, onSettings, onFullscreen, sync }) {
         </span>
       </div>
 
-      <WeatherCard s={settings} />
+      <WeatherCard s={settings} live={weather} />
     </div>
   );
 }
@@ -2566,6 +2708,8 @@ function App() {
   const [scheduleModal, setScheduleModal] = useState(null);
   const [toast, setToast] = useState(null);
   const timer = useTimer();
+  /* 의령군 날씨·미세먼지는 서버가 아니라 Open-Meteo에서 직접 받아 온다 (가족 기록에는 넣지 않음) */
+  const weather = useLiveWeather();
   const scrollRef = useRef(null);
   /* 채팅 이름과 '이 기기 잠금'은 이 기기에만 남는다 */
   const chatAs = device.chatAs || '엄마';
@@ -2817,12 +2961,12 @@ function App() {
   return (
     <div className="min-h-[100dvh] w-full flex justify-center">
       <div className="relative w-full max-w-[460px] h-[100dvh] sm:h-[calc(100dvh-28px)] sm:my-3.5 bg-[#FEFBEF] flex flex-col overflow-hidden sm:rounded-[2.4rem] sm:border sm:border-white sm:shadow-[0_24px_70px_rgba(150,120,90,0.28)]">
-        {tab === 'chat' ? <Header settings={state.settings} chars={state.characters} sync={sync} onSettings={() => setSheet('settings')} onFullscreen={toggleFullscreen} /> : null}
+        {tab === 'chat' ? <Header settings={state.settings} chars={state.characters} sync={sync} weather={weather} onSettings={() => setSheet('settings')} onFullscreen={toggleFullscreen} /> : null}
 
         <main className="flex-1 min-h-0 flex flex-col">
           {tab === 'chat' ? null : (
             <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto no-scrollbar">
-              <Header settings={state.settings} chars={state.characters} sync={sync} onSettings={() => setSheet('settings')} onFullscreen={toggleFullscreen} />
+              <Header settings={state.settings} chars={state.characters} sync={sync} weather={weather} onSettings={() => setSheet('settings')} onFullscreen={toggleFullscreen} />
               <div className="px-4 pb-4">
               {tab === 'home' ? (
                 <HomeTab
@@ -2967,6 +3111,9 @@ function App() {
             <div className="space-y-3">
               <div className="rounded-[1.3rem] bg-[#F4FAFF] border border-[#E3EFF9] p-3.5">
                 <p className="text-[11px] font-extrabold text-[#5E7F9F]">🌤️ 지역과 날씨</p>
+                <p className="mt-1 text-[9.5px] font-bold leading-relaxed text-[#8FA6BC]">
+                  의령군 날씨와 미세먼지는 인터넷에서 실시간으로 받아 와요. 아래 값은 불러오지 못할 때 대신 보여 줄 값이에요.
+                </p>
                 <div className="mt-2 grid grid-cols-2 gap-2">
                   <label className="block">
                     <span className="text-[9.5px] font-extrabold text-[#9A8A72]">지역</span>
