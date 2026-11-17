@@ -617,6 +617,8 @@ function makeDefault() {
       서우: { start: 2100, entries: [] },
     },
     studyLog: {},
+    /* 할 일 체크로 쌓인 적립 — 독서의 studyLog와 같은 모양({ '2026-11-17': { amount, count } }) */
+    taskLog: {},
     stamps: { 승우: [], 은우: [], 서우: [] },
     characters: { ...DEFAULT_CHARS },
     mission: { idx: 0, doneDate: null, count: 0 },
@@ -643,6 +645,8 @@ function normalizeState(p) {
     money: { ...def.money, ...(s.money || {}) },
     stamps: { ...def.stamps, ...(s.stamps || {}) },
     studyLog: { ...def.studyLog, ...(s.studyLog || {}) },
+    /* 서버 기록에 taskLog가 아직 없으면 빈 값으로 시작한다 (기존 기록은 그대로 둔다) */
+    taskLog: { ...def.taskLog, ...(s.taskLog || {}) },
     characters: { ...def.characters, ...(s.characters || {}) },
     mission: { ...def.mission, ...(s.mission || {}) },
     tasks: Array.isArray(s.tasks) ? s.tasks : def.tasks,
@@ -914,14 +918,26 @@ function useFamilySync(state, setState, stateRef) {
 }
 
 /* ────────────────────────── 계산 도우미 ────────────────────────── */
+/* 적립 기록 { '2026-11-17': { amount, count } } 의 합계와 하루치 */
+function logSum(log) {
+  return Object.keys(log || {}).reduce((s, k) => s + (num(log[k] && log[k].amount) || 0), 0);
+}
+function logDay(log, k) {
+  const d = (log && log[k]) || {};
+  return { amount: num(d.amount), count: num(d.count) };
+}
+
 function moneyOf(state, kid) {
   const m = (state.money && state.money[kid]) || { start: 0, entries: [] };
   const entries = Array.isArray(m.entries) ? m.entries : [];
-  const log = (state.studyLog && state.studyLog[kid]) || {};
-  const study = Object.keys(log).reduce((s, k) => s + (num(log[k] && log[k].amount) || 0), 0);
+  const studyLog = (state.studyLog && state.studyLog[kid]) || {};
+  const taskLog = (state.taskLog && state.taskLog[kid]) || {};
+  const study = logSum(studyLog);
+  const task = logSum(taskLog);
   const dep = entries.filter((e) => e.type === '입금').reduce((s, e) => s + num(e.amount), 0);
   const use = entries.filter((e) => e.type === '사용').reduce((s, e) => s + num(e.amount), 0);
-  return { start: num(m.start), study, dep, use, total: num(m.start) + study + dep - use, entries };
+  const start = num(m.start);
+  return { start, study, task, earned: study + task, dep, use, total: start + study + task + dep - use, entries, studyLog, taskLog };
 }
 
 function streakOf(dates) {
@@ -1501,7 +1517,7 @@ function TodoTab({ state, onToggle, onAdd, onEdit, onDelete }) {
           <h2 className="text-[17px] font-extrabold text-[#4B423A] flex items-center gap-1.5">
             <span>✅</span> 오늘 할 일
           </h2>
-          <p className="mt-0.5 text-[10.5px] font-bold text-[#AC9F8F]">승우·은우·서우·엄마·아빠가 각자 할 일을 체크해요</p>
+          <p className="mt-0.5 text-[10.5px] font-bold text-[#AC9F8F]">각자 할 일을 체크해요 · 아이가 체크하면 보상 금액이 용돈에 쌓여요</p>
         </div>
         <button
           onClick={() => { setInline(null); onEdit(null, 'add'); }}
@@ -1514,6 +1530,8 @@ function TodoTab({ state, onToggle, onAdd, onEdit, onDelete }) {
       {MEMBERS.map((m) => {
         const list = state.tasks.filter((t) => t.owner === m.id);
         const done = list.filter((t) => t.completed).length;
+        /* 오늘 이 아이가 할 일을 체크해서 쌓인 금액 */
+        const earnedToday = logDay((state.taskLog || {})[m.id], dkey()).amount;
         return (
           <div key={m.id} className="rounded-[1.7rem] p-3.5 border shadow-[0_3px_14px_rgba(180,160,140,0.09)]" style={{ background: m.tint, borderColor: m.edge }}>
             <div className="flex items-center justify-between gap-2">
@@ -1523,7 +1541,14 @@ function TodoTab({ state, onToggle, onAdd, onEdit, onDelete }) {
                 </div>
                 <div className="min-w-0">
                   <div className="text-[14.5px] font-extrabold text-[#4B423A]">{m.name}</div>
-                  <div className="text-[10px] font-bold text-[#A79B8B]">{done}/{list.length}개 완료</div>
+                  <div className="mt-0.5 flex items-center gap-1 flex-wrap">
+                    <span className="text-[10px] font-bold text-[#A79B8B]">{done}/{list.length}개 완료</span>
+                    {earnedToday > 0 ? (
+                      <span className="rounded-full bg-[#FFF4E2] border border-[#F5E3C4] px-1.5 py-[1px] text-[8.5px] font-extrabold text-[#C08A3A] whitespace-nowrap">
+                        오늘 +{won(earnedToday)}원
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
               </div>
               <span className={`text-[9.5px] font-extrabold rounded-full px-2 py-1 whitespace-nowrap ${
@@ -1712,7 +1737,7 @@ function StudyTab({ state, timer, studyFilter, setStudyFilter, onToggle, onPin, 
         </div>
 
         <p className="mt-1.5 text-[10px] font-bold leading-relaxed text-[#A99A8C]">
-          승우·은우·서우가 각자 할 독서를 체크해요 · 📌 고정 항목은 매일 아침 자동으로 올라와요 · 항목마다 정한 금액(10원~200원)씩 쌓여요
+          승우·은우·서우가 각자 할 독서를 체크해요 · 📌 고정 항목은 매일 아침 자동으로 올라와요 · 항목마다 정한 금액(10원~200원)씩 쌓이고, 할 일 탭의 보상도 같은 용돈에 함께 쌓여요
         </p>
 
         <div className="mt-3 flex items-center gap-2">
@@ -1753,6 +1778,8 @@ function StudyTab({ state, timer, studyFilter, setStudyFilter, onToggle, onPin, 
         const done = items.filter((s) => s.done).length;
         const ipct = items.length ? Math.round((done / items.length) * 100) : 0;
         const money = moneyOf(state, m.id);
+        /* 오늘 독서로 쌓인 금액 */
+        const studyToday = logDay((state.studyLog || {})[m.id], dkey()).amount;
         return (
           <div key={m.id} className="rounded-[1.6rem] bg-white border-2 p-3.5 shadow-[0_3px_14px_rgba(150,180,210,0.10)]" style={{ borderColor: m.edge }}>
             <div className="flex items-center justify-between gap-2">
@@ -1766,9 +1793,16 @@ function StudyTab({ state, timer, studyFilter, setStudyFilter, onToggle, onPin, 
                 </div>
               </div>
               {m.kid ? (
-                <span className="shrink-0 rounded-full bg-[#FFF8E5] border border-[#F2E4C2] px-2.5 py-1 text-[11px] font-extrabold text-[#8B7444] whitespace-nowrap">
-                  🪙 {won(money.total)}원
-                </span>
+                <div className="shrink-0 flex flex-col items-end gap-1">
+                  <span className="rounded-full bg-[#FFF8E5] border border-[#F2E4C2] px-2.5 py-1 text-[11px] font-extrabold text-[#8B7444] whitespace-nowrap">
+                    🪙 {won(money.total)}원
+                  </span>
+                  {studyToday > 0 ? (
+                    <span className="rounded-full bg-[#EAF2FD] border border-[#CFE0F5] px-2 py-[2px] text-[9px] font-extrabold text-[#4C7BAE] whitespace-nowrap">
+                      오늘 +{won(studyToday)}원
+                    </span>
+                  ) : null}
+                </div>
               ) : null}
             </div>
 
@@ -1834,10 +1868,20 @@ function MoneyTab({ state, moneyKid, setMoneyKid, onChangeStart, onAddEntry, onD
   const [memo, setMemo] = useState('');
   const m = M[moneyKid];
 
-  const log = (state.studyLog && state.studyLog[moneyKid]) || {};
+  const studyLog = (state.studyLog && state.studyLog[moneyKid]) || {};
+  const taskLog = (state.taskLog && state.taskLog[moneyKid]) || {};
   const todayKey = dkey();
-  const days = Object.keys(log).sort().reverse();
-  const todayLog = log[todayKey] || { amount: 0, count: 0 };
+  /* 독서·할 일 적립을 합쳐서 날짜별로 보여 준다 */
+  const dayOf = (k) => {
+    const s = logDay(studyLog, k);
+    const t = logDay(taskLog, k);
+    return { s, t, total: s.amount + t.amount };
+  };
+  const days = Array.from(new Set([...Object.keys(studyLog), ...Object.keys(taskLog)]))
+    .filter((k) => { const d = dayOf(k); return d.s.count > 0 || d.t.count > 0 || d.total > 0; })
+    .sort()
+    .reverse();
+  const todayLog = dayOf(todayKey);
 
   const submit = () => {
     const v = num(amount);
@@ -1854,7 +1898,7 @@ function MoneyTab({ state, moneyKid, setMoneyKid, onChangeStart, onAddEntry, onD
           <span className="text-[30px] leading-none">🐷</span>
           <div className="min-w-0">
             <h2 className="text-[18px] font-extrabold text-[#4B423A]">{moneyKid} 용돈기입장</h2>
-            <p className="mt-0.5 text-[10px] font-bold text-[#A99A8C] leading-relaxed">독서를 끝낼 때마다 정한 금액(10원~200원)씩 쌓여요</p>
+            <p className="mt-0.5 text-[10px] font-bold text-[#A99A8C] leading-relaxed">독서·할 일을 끝낼 때마다 정한 금액(10원~200원)씩 쌓여요</p>
           </div>
         </div>
 
@@ -1872,6 +1916,7 @@ function MoneyTab({ state, moneyKid, setMoneyKid, onChangeStart, onAddEntry, onD
         <div className="mt-2.5 flex flex-wrap gap-1.5">
           <span className="rounded-full bg-white/85 border border-[#EFE2D0] px-2.5 py-1 text-[10px] font-extrabold text-[#8A7A64]">시작 금액 {won(money.start)}원</span>
           <span className="rounded-full bg-white/85 border border-[#EFE2D0] px-2.5 py-1 text-[10px] font-extrabold text-[#C08A3A]">독서 적립 +{won(money.study)}원</span>
+          <span className="rounded-full bg-white/85 border border-[#EFE2D0] px-2.5 py-1 text-[10px] font-extrabold text-[#5B7FA8]">할 일 적립 +{won(money.task)}원</span>
           <span className="rounded-full bg-white/85 border border-[#EFE2D0] px-2.5 py-1 text-[10px] font-extrabold text-[#4C8A62]">입금 +{won(money.dep)}원</span>
           <span className="rounded-full bg-white/85 border border-[#EFE2D0] px-2.5 py-1 text-[10px] font-extrabold text-[#C0605C]">사용 -{won(money.use)}원</span>
         </div>
@@ -1940,32 +1985,43 @@ function MoneyTab({ state, moneyKid, setMoneyKid, onChangeStart, onAddEntry, onD
         )}
       </div>
 
-      {/* 매일 독서 적립 */}
+      {/* 매일 적립 (독서 + 할 일) */}
       <div className="rounded-[1.6rem] bg-white border border-[#F1E9DA] p-3.5 shadow-sm">
-        <h3 className="text-[14.5px] font-extrabold text-[#4B423A] flex items-center gap-1.5">📅 매일 독서 적립</h3>
-        <p className="mt-0.5 text-[10px] font-bold text-[#A99A8C]">하루에 한 줄로 그날 총액만 보여요</p>
+        <h3 className="text-[14.5px] font-extrabold text-[#4B423A] flex items-center gap-1.5">📅 매일 적립 (독서 + 할 일)</h3>
+        <p className="mt-0.5 text-[10px] font-bold text-[#A99A8C]">하루에 한 줄로 그날 총액을 보여 줘요 · 독서와 할 일을 나눠서 적어요</p>
 
-        <div className="mt-2.5 rounded-2xl bg-[#FFFDF4] border border-[#F1E9D8] px-3 py-2.5 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <span className="text-[11px] font-extrabold text-[#6B5B4A] whitespace-nowrap">{fmtDay(todayKey)}</span>
-            <span className="rounded-full bg-[#E9F6EC] text-[#3E7B52] px-1.5 py-0.5 text-[8.5px] font-extrabold">오늘</span>
+        <div className="mt-2.5 rounded-2xl bg-[#FFFDF4] border border-[#F1E9D8] px-3 py-2.5 flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] font-extrabold text-[#6B5B4A] whitespace-nowrap">{fmtDay(todayKey)}</span>
+              <span className="rounded-full bg-[#E9F6EC] text-[#3E7B52] px-1.5 py-0.5 text-[8.5px] font-extrabold">오늘</span>
+            </div>
+            <div className="mt-0.5 text-[9.5px] font-bold leading-snug text-[#A99B8A]">
+              독서 {todayLog.s.count}개 · {won(todayLog.s.amount)}원 / 할 일 {todayLog.t.count}개 · {won(todayLog.t.amount)}원
+            </div>
           </div>
-          <span className="text-[10.5px] font-extrabold text-[#8A7A64] whitespace-nowrap">독서 {todayLog.count || 0}개 · <span className="text-[#C08A3A]">+{won(todayLog.amount || 0)}원</span></span>
+          <span className="shrink-0 text-[12px] font-black text-[#C08A3A] whitespace-nowrap">+{won(todayLog.total)}원</span>
         </div>
 
         {days.filter((k) => k !== todayKey).length > 0 ? (
           <div className="mt-1.5 space-y-1">
-            {days.filter((k) => k !== todayKey).slice(0, 6).map((k) => (
-              <div key={k} className="flex items-center justify-between px-1 py-1">
-                <span className="text-[10px] font-bold text-[#A99B8A]">{fmtDay(k)}</span>
-                <span className="text-[10px] font-extrabold text-[#8A7A64]">
-                  독서 {log[k].count || 0}개 · <span className="text-[#C08A3A]">+{won(log[k].amount || 0)}원</span>
-                </span>
-              </div>
-            ))}
+            {days.filter((k) => k !== todayKey).slice(0, 6).map((k) => {
+              const d = dayOf(k);
+              return (
+                <div key={k} className="flex items-start justify-between gap-2 px-1 py-1">
+                  <div className="min-w-0">
+                    <div className="text-[10px] font-bold text-[#A99B8A] whitespace-nowrap">{fmtDay(k)}</div>
+                    <div className="mt-0.5 text-[9px] font-bold leading-snug text-[#B3A795]">
+                      독서 {d.s.count}개 · {won(d.s.amount)}원 / 할 일 {d.t.count}개 · {won(d.t.amount)}원
+                    </div>
+                  </div>
+                  <span className="shrink-0 text-[10.5px] font-extrabold text-[#C08A3A] whitespace-nowrap">+{won(d.total)}원</span>
+                </div>
+              );
+            })}
           </div>
         ) : (
-          <p className="mt-2 text-center text-[10px] font-bold text-[#B6A996]">독서를 하나 끝내면 여기에 쌓여요</p>
+          <p className="mt-2 text-center text-[10px] font-bold text-[#B6A996]">독서나 할 일을 하나 끝내면 여기에 쌓여요</p>
         )}
       </div>
     </div>
@@ -2766,13 +2822,34 @@ function App() {
 
   /* ── 할 일 ── */
   const toggleTask = (id) => {
+    const target = (stateRef.current.tasks || []).find((t) => t.id === id);
+    const nowDone = !!(target && !target.completed);
+    const kid = target && M[target.owner] && M[target.owner].kid;
+    const reward = target ? num(target.reward) : 0;
+
     setState((s) => {
-      const target = s.tasks.find((t) => t.id === id);
-      const tasks = s.tasks.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t));
+      const tasks = s.tasks.map((t) => (t.id === id ? { ...t, completed: nowDone } : t));
       let stamps = s.stamps;
-      if (target && !target.completed) stamps = stampToday(s, target.owner);
-      return { ...s, tasks, stamps };
+      let taskLog = s.taskLog || {};
+      /* 아이의 할 일에 보상이 있으면 독서와 똑같이 그날 적립에 더하고, 풀면 빼 준다 */
+      if (target && kid && reward > 0) {
+        const k = dkey();
+        const cur = (taskLog[target.owner] && taskLog[target.owner][k]) || { amount: 0, count: 0 };
+        const nextDay = {
+          amount: Math.max(0, num(cur.amount) + (nowDone ? reward : -reward)),
+          count: Math.max(0, num(cur.count) + (nowDone ? 1 : -1)),
+        };
+        taskLog = { ...taskLog, [target.owner]: { ...(taskLog[target.owner] || {}), [k]: nextDay } };
+      }
+      if (target && nowDone) stamps = stampToday(s, target.owner);
+      return { ...s, tasks, taskLog, stamps };
     });
+
+    if (target && kid && reward > 0) {
+      showToast(nowDone
+        ? `🪙 ${target.owner} 용돈 ${won(reward)}원 적립!`
+        : `${target.owner} 적립 ${won(reward)}원을 되돌렸어요`);
+    }
   };
 
   const addTask = (owner, text, reward) => {
