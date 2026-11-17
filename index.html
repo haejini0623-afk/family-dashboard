@@ -619,6 +619,8 @@ function makeDefault() {
     studyLog: {},
     /* 할 일 체크로 쌓인 적립 — 독서의 studyLog와 같은 모양({ '2026-11-17': { amount, count } }) */
     taskLog: {},
+    /* 할 일 체크를 마지막으로 푼 날 — 이 날짜가 오늘이 아니면 자정이 지난 것으로 보고 체크를 모두 푼다 */
+    taskResetDate: dkey(),
     stamps: { 승우: [], 은우: [], 서우: [] },
     characters: { ...DEFAULT_CHARS },
     mission: { idx: 0, doneDate: null, count: 0 },
@@ -647,6 +649,8 @@ function normalizeState(p) {
     studyLog: { ...def.studyLog, ...(s.studyLog || {}) },
     /* 서버 기록에 taskLog가 아직 없으면 빈 값으로 시작한다 (기존 기록은 그대로 둔다) */
     taskLog: { ...def.taskLog, ...(s.taskLog || {}) },
+    /* 예전 기록에는 없던 값 — 없으면 '오늘 푼 것'으로 채워 오늘 체크를 지우지 않는다 */
+    taskResetDate: typeof s.taskResetDate === 'string' && s.taskResetDate ? s.taskResetDate : dkey(),
     characters: { ...def.characters, ...(s.characters || {}) },
     mission: { ...def.mission, ...(s.mission || {}) },
     tasks: Array.isArray(s.tasks) ? s.tasks : def.tasks,
@@ -669,10 +673,10 @@ function normalizeState(p) {
 function loadState() {
   try {
     const raw = window.localStorage.getItem(KEY);
-    if (!raw) return makeDefault();
-    return normalizeState(JSON.parse(raw));
+    if (!raw) return rolloverState(rolloverTasks(makeDefault()));
+    return rolloverState(rolloverTasks(normalizeState(JSON.parse(raw))));
   } catch (e) {
-    return makeDefault();
+    return rolloverState(rolloverTasks(makeDefault()));
   }
 }
 
@@ -685,6 +689,24 @@ function rolloverState(s) {
     study: (s.study || []).map((it) => (it.pinned ? { ...it, done: false } : it)),
     lastRollover: today,
   };
+}
+
+/* 할 일 체크는 자정(00:00)이 지나면 모두 풀린다.
+   항목 자체와 적립 기록(taskLog)·독서 기록(studyLog)·용돈(money)·도장(stamps)은 건드리지 않는다. */
+function rolloverTasks(s) {
+  if (!s || typeof s !== 'object') return s;
+  const today = dkey();
+  if (!s.taskResetDate) return { ...s, taskResetDate: today };
+  /* 오늘이거나 오늘보다 앞선 날짜(다른 기기 시계 등)면 그대로 둔다 — 지난 날짜일 때만 푼다 */
+  if (s.taskResetDate >= today) return s;
+  const list = Array.isArray(s.tasks) ? s.tasks : [];
+  let changed = false;
+  const tasks = list.map((t) => {
+    if (!t || !t.completed) return t;
+    changed = true;
+    return { ...t, completed: false };
+  });
+  return { ...s, tasks: changed ? tasks : list, taskResetDate: today };
 }
 
 function saveState(s) {
@@ -785,10 +807,12 @@ function useFamilySync(state, setState, stateRef) {
     if (meta && meta.c === CLIENT_ID) return false;
     const clean = sharedSnapshot(raw);
     if (!Object.keys(clean).length) return false;
-    const next = rolloverState(normalizeState(clean));
+    const base = normalizeState(clean);
+    const next = rolloverState(rolloverTasks(base));
     const serial = JSON.stringify(sharedSnapshot(next));
     if (serial === sentRef.current) return false;
-    sentRef.current = serial;
+    /* 지난 날짜로 남아 있던 체크를 오늘 기준으로 풀었다면 그 결과를 다시 서버에 올린다 */
+    if (base.taskResetDate === next.taskResetDate) sentRef.current = serial;
     setState(next);
     return true;
   };
@@ -1518,6 +1542,7 @@ function TodoTab({ state, onToggle, onAdd, onEdit, onDelete }) {
             <span>✅</span> 오늘 할 일
           </h2>
           <p className="mt-0.5 text-[10.5px] font-bold text-[#AC9F8F]">각자 할 일을 체크해요 · 아이가 체크하면 보상 금액이 용돈에 쌓여요</p>
+          <p className="mt-0.5 text-[9.5px] font-bold text-[#BCAF9D]">🌙 자정이 지나면 체크가 모두 풀려요 · 적립 기록은 그대로 남아요</p>
         </div>
         <button
           onClick={() => { setInline(null); onEdit(null, 'add'); }}
@@ -2800,9 +2825,20 @@ function App() {
   useEffect(() => { saveState(state); }, [state]);
   useEffect(() => { saveDevice(device); }, [device]);
 
-  /* 고정 항목은 매일 아침 다시 열린다 */
+  /* 고정 항목과 할 일 체크는 매일 아침(자정) 다시 열린다.
+     화면을 열 때 한 번, 1분마다, 그리고 탭으로 돌아올 때 확인해서 앱을 켜 둔 채 자정이 지나도 풀린다. */
   useEffect(() => {
-    setState((s) => rolloverState(s));
+    const roll = () => setState((s) => rolloverState(rolloverTasks(s)));
+    roll();
+    const id = setInterval(roll, 60000);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') roll();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, []);
 
   const showToast = (msg, undo) => setToast({ id: Date.now(), msg, undo });
