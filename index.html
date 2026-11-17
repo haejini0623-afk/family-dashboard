@@ -94,6 +94,8 @@ const SCHED_DAYS = [
   { key: 'sun', label: '일' },
 ];
 const FAMILY_WHO = '가족';
+/* 일정 시간 빠른 선택 — 아이폰 시계 휠을 열지 않고도 한 번에 고를 수 있게 */
+const SCHED_TIME_PRESETS = ['09:00', '12:00', '15:00', '18:00'];
 /* 예전 기록이 'mon'·'tue' 같은 이름으로 저장돼 있어도 받아 준다 */
 const schedDayIndex = (v) => {
   if (typeof v === 'number' && v >= 0 && v <= 6) return Math.round(v);
@@ -2630,40 +2632,57 @@ function ScheduleSheet({ open, mode, initial, initialDay, onClose, onSave, chars
           </div>
         </div>
 
-        <div className="flex gap-1.5">
-          <div className="w-[36%]">
-            <p className="mb-1.5 text-[10.5px] font-extrabold text-[#9A8A72]">시간 (선택)</p>
-            <div className="flex items-center gap-1">
-              <input
-                value={time}
-                inputMode="numeric"
-                onChange={(e) => setTime(e.target.value.replace(/[^0-9:]/g, '').slice(0, 5))}
-                onKeyDown={(e) => { if (e.key === 'Enter') save(); }}
-                placeholder="15:30"
-                className="flex-1 min-w-0 rounded-xl border border-[#EADFCB] bg-white px-2.5 py-2.5 text-[12.5px] font-bold tabular-nums text-center text-[#4B423A] outline-none focus:border-[#D9C4A5] placeholder-[#BFB2A2]"
-              />
+        <div>
+          <p className="mb-1.5 text-[10.5px] font-extrabold text-[#9A8A72]">시간 (선택)</p>
+          {/* 아이폰 사파리에서는 이 칸을 누르면 시계 휠이 바로 열린다(콜론 입력 필요 없음) */}
+          <div className="flex items-stretch gap-1.5">
+            <input
+              type="time"
+              step="60"
+              value={time}
+              onChange={(e) => { setTime(e.target.value); if (err) setErr(''); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') save(); }}
+              aria-label="일정 시간"
+              className="h-11 min-w-0 flex-1 rounded-xl border border-[#EADFCB] bg-white px-3 text-[13px] font-bold tabular-nums text-[#4B423A] outline-none focus:border-[#D9C4A5] [&::-webkit-calendar-picker-indicator]:opacity-50 [&::-webkit-calendar-picker-indicator]:cursor-pointer"
+            />
+            <button
+              onClick={() => { setTime(''); if (err) setErr(''); }}
+              aria-label="시간 비우기(종일)"
+              aria-pressed={!time}
+              className={`shrink-0 rounded-xl border px-3 text-[11px] font-extrabold press ${
+                time ? 'bg-white border-[#EDE3D2] text-[#A99B8A]' : 'bg-[#FFF0C9] border-[#EFD89A] text-[#A87F2C]'
+              }`}
+            >
+              종일
+            </button>
+          </div>
+          <div className="mt-1.5 flex gap-1.5">
+            {SCHED_TIME_PRESETS.map((p) => (
               <button
-                onClick={() => setTime('')}
-                aria-label="시간 비우기(종일)"
-                className={`shrink-0 rounded-xl border px-2 py-2.5 text-[10px] font-extrabold press ${
-                  time ? 'bg-white border-[#EDE3D2] text-[#A99B8A]' : 'bg-[#FFF0C9] border-[#EFD89A] text-[#A87F2C]'
+                key={p}
+                onClick={() => { setTime(p); if (err) setErr(''); }}
+                aria-pressed={time === p}
+                className={`flex-1 rounded-full border py-1.5 text-[10.5px] font-extrabold tabular-nums press ${
+                  time === p ? 'bg-[#FFF0C9] border-[#EFD89A] text-[#A87F2C]' : 'bg-white border-[#EDE3D2] text-[#A99B8A]'
                 }`}
               >
-                종일
+                {p}
               </button>
-            </div>
+            ))}
           </div>
-          <div className="flex-1 min-w-0">
-            <p className="mb-1.5 text-[10.5px] font-extrabold text-[#9A8A72]">일정 내용</p>
-            <input
-              autoFocus
-              value={title}
-              onChange={(e) => { setTitle(e.target.value); if (err) setErr(''); }}
-              onKeyDown={(e) => { if (e.key === 'Enter') save(); }}
-              placeholder="예) 수학 학원"
-              className="w-full rounded-xl border border-[#EADFCB] bg-white px-3.5 py-2.5 text-[12.5px] font-bold text-[#4B423A] outline-none focus:border-[#D9C4A5] placeholder-[#BFB2A2]"
-            />
-          </div>
+          <p className="mt-1 text-[9.5px] font-bold text-[#B9AC9B]">시계에서 고르거나 13:00처럼 적어도 돼요 · 비우면 종일</p>
+        </div>
+
+        <div>
+          <p className="mb-1.5 text-[10.5px] font-extrabold text-[#9A8A72]">일정 내용</p>
+          <input
+            autoFocus
+            value={title}
+            onChange={(e) => { setTitle(e.target.value); if (err) setErr(''); }}
+            onKeyDown={(e) => { if (e.key === 'Enter') save(); }}
+            placeholder="예) 수학 학원"
+            className="w-full rounded-xl border border-[#EADFCB] bg-white px-3.5 py-2.5 text-[12.5px] font-bold text-[#4B423A] outline-none focus:border-[#D9C4A5] placeholder-[#BFB2A2]"
+          />
         </div>
 
         <div>
