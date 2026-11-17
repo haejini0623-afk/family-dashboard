@@ -2823,32 +2823,39 @@ function App() {
   /* ── 할 일 ── */
   const toggleTask = (id) => {
     const target = (stateRef.current.tasks || []).find((t) => t.id === id);
-    const nowDone = !!(target && !target.completed);
-    const kid = target && M[target.owner] && M[target.owner].kid;
-    const reward = target ? num(target.reward) : 0;
 
     setState((s) => {
+      /* 이번 변경이 반영될 상태에서 직접 뒤집는다 (빠르게 두 번 눌러도 한 번씩만 계산되도록) */
+      const t0 = (s.tasks || []).find((t) => t.id === id);
+      if (!t0) return s;
+      const nowDone = !t0.completed;
+      const kid = M[t0.owner] && M[t0.owner].kid;
+      const reward = num(t0.reward);
       const tasks = s.tasks.map((t) => (t.id === id ? { ...t, completed: nowDone } : t));
       let stamps = s.stamps;
       let taskLog = s.taskLog || {};
       /* 아이의 할 일에 보상이 있으면 독서와 똑같이 그날 적립에 더하고, 풀면 빼 준다 */
-      if (target && kid && reward > 0) {
+      if (kid && reward > 0) {
         const k = dkey();
-        const cur = (taskLog[target.owner] && taskLog[target.owner][k]) || { amount: 0, count: 0 };
+        const cur = (taskLog[t0.owner] && taskLog[t0.owner][k]) || { amount: 0, count: 0 };
         const nextDay = {
           amount: Math.max(0, num(cur.amount) + (nowDone ? reward : -reward)),
           count: Math.max(0, num(cur.count) + (nowDone ? 1 : -1)),
         };
-        taskLog = { ...taskLog, [target.owner]: { ...(taskLog[target.owner] || {}), [k]: nextDay } };
+        taskLog = { ...taskLog, [t0.owner]: { ...(taskLog[t0.owner] || {}), [k]: nextDay } };
       }
-      if (target && nowDone) stamps = stampToday(s, target.owner);
+      if (nowDone) stamps = stampToday(s, t0.owner);
       return { ...s, tasks, taskLog, stamps };
     });
 
-    if (target && kid && reward > 0) {
-      showToast(nowDone
-        ? `🪙 ${target.owner} 용돈 ${won(reward)}원 적립!`
-        : `${target.owner} 적립 ${won(reward)}원을 되돌렸어요`);
+    if (target) {
+      const reward = num(target.reward);
+      const kid = M[target.owner] && M[target.owner].kid;
+      if (kid && reward > 0) {
+        showToast(!target.completed
+          ? `🪙 ${target.owner} 용돈 ${won(reward)}원 적립!`
+          : `${target.owner} 적립 ${won(reward)}원을 되돌렸어요`);
+      }
     }
   };
 
