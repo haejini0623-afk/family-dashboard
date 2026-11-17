@@ -1011,7 +1011,7 @@ function Sheet({ title, subtitle, onClose, children, footer }) {
 
 function QuickPills({ options, value, onChange }) {
   return (
-    <div className="flex gap-1.5">
+    <div className="flex flex-wrap gap-1.5">
       {options.map((o) => (
         <button
           key={o}
@@ -1712,7 +1712,7 @@ function StudyTab({ state, timer, studyFilter, setStudyFilter, onToggle, onPin, 
         </div>
 
         <p className="mt-1.5 text-[10px] font-bold leading-relaxed text-[#A99A8C]">
-          승우·은우·서우가 각자 할 독서를 체크해요 · 📌 고정 항목은 매일 아침 자동으로 올라와요 · 항목마다 정한 금액(100원·50원)씩 쌓여요
+          승우·은우·서우가 각자 할 독서를 체크해요 · 📌 고정 항목은 매일 아침 자동으로 올라와요 · 항목마다 정한 금액(50·100·150·200원)씩 쌓여요
         </p>
 
         <div className="mt-3 flex items-center gap-2">
@@ -1854,7 +1854,7 @@ function MoneyTab({ state, moneyKid, setMoneyKid, onChangeStart, onAddEntry, onD
           <span className="text-[30px] leading-none">🐷</span>
           <div className="min-w-0">
             <h2 className="text-[18px] font-extrabold text-[#4B423A]">{moneyKid} 용돈기입장</h2>
-            <p className="mt-0.5 text-[10px] font-bold text-[#A99A8C] leading-relaxed">독서를 끝낼 때마다 정한 금액(100원·50원)씩 쌓여요</p>
+            <p className="mt-0.5 text-[10px] font-bold text-[#A99A8C] leading-relaxed">독서를 끝낼 때마다 정한 금액(50·100·150·200원)씩 쌓여요</p>
           </div>
         </div>
 
@@ -2452,7 +2452,7 @@ function TaskSheet({ open, mode, initialOwner, initialText, initialReward, onClo
 
         <div>
           <p className="mb-1.5 text-[10.5px] font-extrabold text-[#9A8A72]">보상</p>
-          <QuickPills options={[0, 50, 100]} value={num(reward)} onChange={setReward} />
+          <QuickPills options={[0, 50, 100, 150, 200]} value={num(reward)} onChange={setReward} />
         </div>
 
         <button onClick={save} className="w-full rounded-2xl bg-[#4B423A] text-white py-3 text-[12.5px] font-extrabold press">
@@ -2531,7 +2531,7 @@ function StudySheet({ open, mode, initial, onClose, onSave, chars }) {
 
         <div>
           <p className="mb-1.5 text-[10.5px] font-extrabold text-[#9A8A72]">보상 금액</p>
-          <QuickPills options={[0, 50, 100]} value={num(reward)} onChange={setReward} />
+          <QuickPills options={[0, 50, 100, 150, 200]} value={num(reward)} onChange={setReward} />
         </div>
 
         <button
