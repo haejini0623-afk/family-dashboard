@@ -1529,9 +1529,11 @@ function HomeTab({ state, onMemberTap, stampKid, setStampKid, openCalendar, togg
 }
 
 /* ────────────────────────── 할 일 ────────────────────────── */
-function TodoTab({ state, onToggle, onAdd, onEdit, onDelete }) {
+function TodoTab({ state, onToggle, onAdd, onEdit, onDelete, onMove }) {
   const [inline, setInline] = useState(null);
   const [draft, setDraft] = useState('');
+  /* ↕️ 순서 모드: 켜 두는 동안에만 ▲▼가 나오고, 체크·수정·삭제는 잠시 쉰다 */
+  const [reorder, setReorder] = useState(false);
 
   const submit = (owner) => {
     const t = draft.trim();
@@ -1551,13 +1553,32 @@ function TodoTab({ state, onToggle, onAdd, onEdit, onDelete }) {
           <p className="mt-0.5 text-[10.5px] font-bold text-[#AC9F8F]">각자 할 일을 체크해요 · 아이가 체크하면 보상 금액이 용돈에 쌓여요</p>
           <p className="mt-0.5 text-[9.5px] font-bold text-[#BCAF9D]">🌙 자정이 지나면 체크가 모두 풀려요 · 적립 기록은 그대로 남아요</p>
         </div>
-        <button
-          onClick={() => { setInline(null); onEdit(null, 'add'); }}
-          className="shrink-0 rounded-full bg-white border border-[#F0E4CF] shadow-sm px-3 py-2 text-[11px] font-extrabold text-[#8A6C4A] press whitespace-nowrap"
-        >
-          + 할 일 추가
-        </button>
+        <div className="shrink-0 flex flex-col items-end gap-1.5">
+          <button
+            onClick={() => { setInline(null); onEdit(null, 'add'); }}
+            className="rounded-full bg-white border border-[#F0E4CF] shadow-sm px-3 py-2 text-[11px] font-extrabold text-[#8A6C4A] press whitespace-nowrap"
+          >
+            + 할 일 추가
+          </button>
+          <button
+            onClick={() => { setInline(null); setDraft(''); setReorder((v) => !v); }}
+            aria-pressed={reorder}
+            className={`rounded-full border shadow-sm px-3 py-2 text-[11px] font-extrabold press whitespace-nowrap ${
+              reorder
+                ? 'bg-[#8A6C4A] border-[#8A6C4A] text-white'
+                : 'bg-white border-[#F0E4CF] text-[#8A6C4A]'
+            }`}
+          >
+            {reorder ? '✓ 완료' : '↕️ 순서'}
+          </button>
+        </div>
       </div>
+
+      {reorder ? (
+        <div className="mx-1 rounded-[1.1rem] border border-dashed border-[#E3CFAC] bg-[#FFF7E8] px-3 py-2 text-[10.5px] font-extrabold leading-relaxed text-[#A87A34]">
+          ↕️ 순서를 바꾸는 중이에요 · ▲▼로 위아래를 옮기고, 다 바꾸면 <span className="whitespace-nowrap">✓ 완료</span>를 눌러요
+        </div>
+      ) : null}
 
       {MEMBERS.map((m) => {
         const list = state.tasks.filter((t) => t.owner === m.id);
@@ -1598,8 +1619,11 @@ function TodoTab({ state, onToggle, onAdd, onEdit, onDelete }) {
                   <div key={t.id} className={`flex items-center gap-2 py-2.5 ${i > 0 ? 'border-t border-dashed border-[#00000012]' : ''}`}>
                     <button
                       onClick={() => onToggle(t.id)}
+                      disabled={reorder}
                       aria-label="완료 표시"
-                      className={`h-[22px] w-[22px] shrink-0 rounded-[0.5rem] border-2 flex items-center justify-center press ${
+                      className={`h-[22px] w-[22px] shrink-0 rounded-[0.5rem] border-2 flex items-center justify-center ${
+                        reorder ? 'opacity-40 cursor-default' : 'press'
+                      } ${
                         t.completed ? 'bg-[#4CC17C] border-[#4CC17C] text-white' : 'bg-white border-[#CFC6B8]'
                       }`}
                     >
@@ -1615,8 +1639,36 @@ function TodoTab({ state, onToggle, onAdd, onEdit, onDelete }) {
                         🪙 {t.reward}원
                       </span>
                     ) : null}
-                    <button onClick={() => onEdit(t, 'edit')} aria-label="수정" className="shrink-0 h-7 w-7 rounded-[0.6rem] bg-white/80 border border-white text-[12px] press">✏️</button>
-                    <button onClick={() => onDelete(t)} aria-label="할 일 삭제" className="shrink-0 h-7 w-7 rounded-[0.6rem] bg-white/80 border border-white text-[12px] text-[#C9726C] press">✕</button>
+                    <div className="shrink-0 flex items-center gap-1">
+                      {reorder ? (
+                        <button
+                          onClick={() => onMove(t.id, -1)}
+                          disabled={i === 0}
+                          aria-label="위로 옮기기"
+                          className={`h-7 w-7 rounded-[0.6rem] border text-[10px] font-black ${
+                            i === 0
+                              ? 'bg-white/40 border-white/60 text-[#CDBFAC] cursor-default'
+                              : 'bg-[#FFF3DA] border-[#EBD7B4] text-[#A87A34] press'
+                          }`}
+                        >▲</button>
+                      ) : (
+                        <button onClick={() => onEdit(t, 'edit')} aria-label="수정" className="h-7 w-7 rounded-[0.6rem] bg-white/80 border border-white text-[12px] press">✏️</button>
+                      )}
+                      {reorder ? (
+                        <button
+                          onClick={() => onMove(t.id, 1)}
+                          disabled={i === list.length - 1}
+                          aria-label="아래로 옮기기"
+                          className={`h-7 w-7 rounded-[0.6rem] border text-[10px] font-black ${
+                            i === list.length - 1
+                              ? 'bg-white/40 border-white/60 text-[#CDBFAC] cursor-default'
+                              : 'bg-[#FFF3DA] border-[#EBD7B4] text-[#A87A34] press'
+                          }`}
+                        >▼</button>
+                      ) : (
+                        <button onClick={() => onDelete(t)} aria-label="할 일 삭제" className="h-7 w-7 rounded-[0.6rem] bg-white/80 border border-white text-[12px] text-[#C9726C] press">✕</button>
+                      )}
+                    </div>
                   </div>
                 ))
               )}
@@ -1806,7 +1858,6 @@ function StudyTab({ state, timer, studyFilter, setStudyFilter, onToggle, onPin, 
 
       {shown.map((m) => {
         const items = all.filter((s) => s.owner === m.id);
-        if (items.length === 0) return null;
         const done = items.filter((s) => s.done).length;
         const ipct = items.length ? Math.round((done / items.length) * 100) : 0;
         const money = moneyOf(state, m.id);
@@ -1843,6 +1894,9 @@ function StudyTab({ state, timer, studyFilter, setStudyFilter, onToggle, onPin, 
             </div>
 
             <div className="mt-1.5">
+              {items.length === 0 ? (
+                <p className="py-3 text-center text-[11px] font-bold text-[#B6A996]">아직 독서 항목이 없어요. 하나 추가해 볼까요?</p>
+              ) : null}
               {items.map((s, i) => (
                 <div key={s.id} className={`py-2.5 ${i > 0 ? 'border-t border-dashed border-[#00000010]' : ''}`}>
                   <div className="flex items-center gap-1.5">
@@ -1885,6 +1939,13 @@ function StudyTab({ state, timer, studyFilter, setStudyFilter, onToggle, onPin, 
                 </div>
               ))}
             </div>
+
+            <button
+              onClick={() => onEdit(null, 'add', m.id)}
+              className="mt-2 w-full rounded-[1rem] border border-dashed border-[#CFC4B2] bg-white/45 py-2.5 text-[11px] font-extrabold text-[#A3947F] press"
+            >
+              + {m.name} 독서 추가
+            </button>
           </div>
         );
       })}
@@ -2923,6 +2984,26 @@ function App() {
     showToast('할 일을 지웠어요', () => setState((s) => ({ ...s, tasks: backup })));
   };
 
+  /* ↕️ 순서 바꾸기: 같은 구성원(owner)의 바로 위·아래 항목과 자리를 맞바꾼다.
+     state.tasks 배열 자체의 순서를 바꾸므로 localStorage 저장과 Supabase 동기화가 그대로 따라온다. */
+  const moveTask = (id, dir) => {
+    setState((s) => {
+      const list = Array.isArray(s.tasks) ? s.tasks : [];
+      const i = list.findIndex((t) => t.id === id);
+      if (i < 0) return s;
+      const owner = list[i].owner;
+      let j = -1;
+      for (let k = i + dir; k >= 0 && k < list.length; k += dir) {
+        if (list[k] && list[k].owner === owner) { j = k; break; }
+      }
+      if (j < 0) return s;
+      const tasks = list.slice();
+      const [moved] = tasks.splice(i, 1);
+      tasks.splice(j, 0, moved);
+      return { ...s, tasks };
+    });
+  };
+
   /* ── 독서 ── */
   const toggleStudy = (item) => {
     setState((s) => {
@@ -3143,6 +3224,7 @@ function App() {
                     else setTaskModal({ mode: 'edit', task });
                   }}
                   onDelete={deleteTask}
+                  onMove={moveTask}
                 />
               ) : null}
 
@@ -3154,8 +3236,8 @@ function App() {
                   setStudyFilter={setStudyFilter}
                   onToggle={toggleStudy}
                   onPin={pinStudy}
-                  onEdit={(item, mode) => {
-                    if (mode === 'add') setStudyModal({ mode: 'add', initial: null });
+                  onEdit={(item, mode, ownerId) => {
+                    if (mode === 'add') setStudyModal({ mode: 'add', initial: ownerId ? { owner: ownerId } : null });
                     else setStudyModal({ mode: 'edit', initial: item });
                   }}
                   onDelete={deleteStudy}
