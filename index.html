@@ -3395,7 +3395,11 @@ function App() {
               return (
                 <button
                   key={t.id}
-                  onClick={() => setTab(t.id)}
+                  onClick={() => {
+                    /* 용돈 탭은 아래 메뉴로 열 때 언제나 '전체'부터 (홈에서 아이를 눌러 들어온 경우에만 그 아이만) */
+                    if (t.id === 'money') setMoneyFilter('전체');
+                    setTab(t.id);
+                  }}
                   className={`flex-1 min-w-0 flex flex-col items-center gap-1 py-1.5 px-0.5 rounded-2xl press ${on ? 'bg-[#FFF1BF]' : ''}`}
                 >
                   <span className={`text-[19px] leading-none transition-transform ${on ? '-translate-y-0.5' : 'opacity-80'}`}>{t.icon}</span>
