@@ -1954,169 +1954,266 @@ function StudyTab({ state, timer, studyFilter, setStudyFilter, onToggle, onPin, 
 }
 
 /* ────────────────────────── 용돈 ────────────────────────── */
-function MoneyTab({ state, moneyKid, setMoneyKid, onChangeStart, onAddEntry, onDeleteEntry }) {
-  const money = moneyOf(state, moneyKid);
+/* 아이 한 명의 용돈 카드.
+   세 아이 카드를 한 화면에 이어 붙여도 입력 칸이 서로 섞이지 않도록
+   kind·amount·memo·openLog는 이 컴포넌트 안에만 둔다(카드마다 따로). */
+function KidMoneyCard({ m, state, onChangeStart, onAddEntry, onDeleteEntry }) {
+  const money = moneyOf(state, m.id);
   const [kind, setKind] = useState('입금');
   const [amount, setAmount] = useState('');
   const [memo, setMemo] = useState('');
-  const m = M[moneyKid];
+  const [openLog, setOpenLog] = useState(false);
 
-  const studyLog = (state.studyLog && state.studyLog[moneyKid]) || {};
-  const taskLog = (state.taskLog && state.taskLog[moneyKid]) || {};
   const todayKey = dkey();
-  /* 독서·할 일 적립을 합쳐서 날짜별로 보여 준다 */
+  /* 독서·할 일 적립을 합쳐 날짜별로 (용돈 탭의 '오늘 적립'·'최근 적립 내역') */
   const dayOf = (k) => {
-    const s = logDay(studyLog, k);
-    const t = logDay(taskLog, k);
+    const s = logDay(money.studyLog, k);
+    const t = logDay(money.taskLog, k);
     return { s, t, total: s.amount + t.amount };
   };
-  const days = Array.from(new Set([...Object.keys(studyLog), ...Object.keys(taskLog)]))
+  const days = Array.from(new Set([...Object.keys(money.studyLog), ...Object.keys(money.taskLog)]))
     .filter((k) => { const d = dayOf(k); return d.s.count > 0 || d.t.count > 0 || d.total > 0; })
     .sort()
     .reverse();
   const todayLog = dayOf(todayKey);
+  const pastDays = days.filter((k) => k !== todayKey);
 
   const submit = () => {
     const v = num(amount);
     if (!v) return;
-    onAddEntry(moneyKid, { kind, amount: v, memo: memo.trim() });
+    onAddEntry(m.id, { kind, amount: v, memo: memo.trim() });
     setAmount('');
     setMemo('');
   };
 
   return (
-    <div className="space-y-3">
-      <div className="rounded-[1.8rem] bg-gradient-to-br from-[#FFF7EA] via-[#FFF2EE] to-[#F9F1FB] border border-[#F6E4D8] p-4 shadow-[0_4px_18px_rgba(220,190,170,0.14)]">
-        <div className="flex items-center gap-2.5">
-          <span className="text-[30px] leading-none">🐷</span>
+    <div className="rounded-[1.6rem] bg-white border-2 p-3.5 shadow-[0_3px_14px_rgba(180,160,140,0.09)]" style={{ borderColor: m.edge }}>
+      {/* 누구 · 지금 모은 돈 */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="h-11 w-11 rounded-[0.9rem] border bg-white flex items-center justify-center shrink-0" style={{ borderColor: m.edge }}>
+            <Ava id={m.id} chars={state.characters} size={38} />
+          </div>
           <div className="min-w-0">
-            <h2 className="text-[18px] font-extrabold text-[#4B423A]">{moneyKid} 용돈기입장</h2>
-            <p className="mt-0.5 text-[10px] font-bold text-[#A99A8C] leading-relaxed">독서·할 일을 끝낼 때마다 정한 금액(10원~200원)씩 쌓여요</p>
+            <div className="text-[15px] font-extrabold text-[#4B423A]">{m.name}</div>
+            <div className="mt-0.5 text-[9.5px] font-bold text-[#A79B8B]">{m.subtitle}</div>
           </div>
         </div>
-
-        <div className="mt-3">
-          <KidSwitch value={moneyKid} onChange={setMoneyKid} chars={state.characters} />
-        </div>
-
-        <div className="mt-3.5 flex items-end justify-between gap-2">
-          <span className="text-[11.5px] font-extrabold text-[#9A8A72]">지금 모은 돈</span>
-          <span className="text-[29px] font-black text-[#6B5433] tracking-tight leading-none">
-            {won(money.total)}<span className="text-[14px] font-extrabold">원</span>
-          </span>
-        </div>
-
-        <div className="mt-2.5 flex flex-wrap gap-1.5">
-          <span className="rounded-full bg-white/85 border border-[#EFE2D0] px-2.5 py-1 text-[10px] font-extrabold text-[#8A7A64]">시작 금액 {won(money.start)}원</span>
-          <span className="rounded-full bg-white/85 border border-[#EFE2D0] px-2.5 py-1 text-[10px] font-extrabold text-[#C08A3A]">독서 적립 +{won(money.study)}원</span>
-          <span className="rounded-full bg-white/85 border border-[#EFE2D0] px-2.5 py-1 text-[10px] font-extrabold text-[#5B7FA8]">할 일 적립 +{won(money.task)}원</span>
-          <span className="rounded-full bg-white/85 border border-[#EFE2D0] px-2.5 py-1 text-[10px] font-extrabold text-[#4C8A62]">입금 +{won(money.dep)}원</span>
-          <span className="rounded-full bg-white/85 border border-[#EFE2D0] px-2.5 py-1 text-[10px] font-extrabold text-[#C0605C]">사용 -{won(money.use)}원</span>
-        </div>
-
-        <div className="mt-3.5 border-t border-dashed border-[#E9DAC5] pt-3">
-          <label className="text-[10.5px] font-extrabold text-[#9A8A72]">시작 금액(이미 모아 둔 돈)</label>
-          <NumberField
-            value={money.start}
-            onCommit={(v) => onChangeStart(moneyKid, v)}
-            placeholder="0"
-            className="mt-1.5 w-full rounded-2xl border border-[#EADCC6] bg-white px-4 py-3 text-[16px] font-extrabold text-[#4B423A] outline-none focus:border-[#D9C4A5]"
-          />
+        <div className="shrink-0 rounded-[1rem] border px-2.5 py-1.5 text-right" style={{ background: m.tint, borderColor: m.edge }}>
+          <div className="text-[8.5px] font-extrabold text-[#9A8A72] whitespace-nowrap">지금 모은 돈</div>
+          <div className="text-[17px] font-black leading-tight text-[#6B5433] whitespace-nowrap">
+            {won(money.total)}<span className="text-[10.5px] font-extrabold">원</span>
+          </div>
         </div>
       </div>
 
-      {/* 입금·사용 기록 */}
-      <div className="rounded-[1.6rem] bg-white border border-[#F1E9DA] p-3.5 shadow-sm">
-        <h3 className="text-[14.5px] font-extrabold text-[#4B423A] flex items-center gap-1.5">✍️ 입금 · 사용 기록하기</h3>
-        <div className="mt-2.5 flex gap-1.5">
-          {['입금', '사용'].map((k) => (
+      {/* 어떻게 모였는지 */}
+      <div className="mt-2.5 flex flex-wrap gap-1">
+        <span className="rounded-full bg-[#FBF7F0] border border-[#EFE6D6] px-2 py-[3px] text-[9px] font-extrabold text-[#8A7A64] whitespace-nowrap">시작 {won(money.start)}원</span>
+        <span className="rounded-full bg-[#FFF8E7] border border-[#F2E4C2] px-2 py-[3px] text-[9px] font-extrabold text-[#A9822F] whitespace-nowrap">독서 +{won(money.study)}원</span>
+        <span className="rounded-full bg-[#EFF5FC] border border-[#D6E4F5] px-2 py-[3px] text-[9px] font-extrabold text-[#5B7FA8] whitespace-nowrap">할 일 +{won(money.task)}원</span>
+        {money.dep > 0 ? (
+          <span className="rounded-full bg-[#EDF7F0] border border-[#CFE8D7] px-2 py-[3px] text-[9px] font-extrabold text-[#4C8A62] whitespace-nowrap">입금 +{won(money.dep)}원</span>
+        ) : null}
+        {money.use > 0 ? (
+          <span className="rounded-full bg-[#FDF0EE] border border-[#F3D9D4] px-2 py-[3px] text-[9px] font-extrabold text-[#C0605C] whitespace-nowrap">사용 -{won(money.use)}원</span>
+        ) : null}
+      </div>
+
+      {/* 오늘 적립 */}
+      <div className="mt-2 flex items-center justify-between gap-2 rounded-xl border border-[#F1E9D8] bg-[#FFFDF4] px-2.5 py-2">
+        <div className="min-w-0">
+          <div className="text-[10px] font-extrabold text-[#6B5B4A]">오늘 적립</div>
+          <div className="mt-0.5 text-[9px] font-bold leading-snug text-[#A99B8A]">
+            독서 {todayLog.s.count}개 · 할 일 {todayLog.t.count}개
+          </div>
+        </div>
+        <span className="shrink-0 text-[12.5px] font-black text-[#C08A3A] whitespace-nowrap">+{won(todayLog.total)}원</span>
+      </div>
+
+      {/* 입금 · 사용 기록 */}
+      <div className="mt-2.5 flex gap-1.5">
+        {['입금', '사용'].map((k) => (
+          <button
+            key={k}
+            onClick={() => setKind(k)}
+            className={`flex-1 rounded-full py-1.5 text-[10.5px] font-extrabold border press ${
+              kind === k
+                ? (k === '입금' ? 'bg-[#E9F6EC] border-[#C9E8D2] text-[#2E7D46]' : 'bg-[#FDEDEB] border-[#F3D3CE] text-[#B4584D]')
+                : 'bg-white border-[#EDE6D8] text-[#A99B8A]'
+            }`}
+          >
+            {k === '입금' ? '💰 입금' : '🛒 사용'}
+          </button>
+        ))}
+      </div>
+      <div className="mt-1.5 flex gap-1.5">
+        <NumberField
+          value={amount}
+          onCommit={(v) => setAmount(String(v))}
+          placeholder="금액"
+          className="w-[33%] min-w-0 rounded-xl border border-[#EDE6D8] bg-[#FFFDF8] px-2.5 py-2 text-[12.5px] font-extrabold text-[#4B423A] outline-none focus:border-[#D9C4A5] placeholder-[#BFB2A2]"
+        />
+        <input
+          value={memo}
+          onChange={(e) => setMemo(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') submit(); }}
+          placeholder="무엇에 썼는지 메모"
+          className="flex-1 min-w-0 rounded-xl border border-[#EDE6D8] bg-[#FFFDF8] px-2.5 py-2 text-[11.5px] font-bold text-[#4B423A] outline-none focus:border-[#D9C4A5] placeholder-[#BFB2A2]"
+        />
+        <button onClick={submit} className="shrink-0 rounded-xl bg-[#4B423A] px-3 py-2 text-[11px] font-extrabold text-white press">기록</button>
+      </div>
+
+      {money.entries.length > 0 ? (
+        <div className="mt-2 space-y-1">
+          {money.entries.slice().reverse().map((e) => (
+            <div key={e.id} className="flex items-center gap-1.5 rounded-xl border border-[#F3EBDD] bg-[#FFFDF8] px-2 py-1.5">
+              <span className={`shrink-0 rounded-full px-1.5 py-[1px] text-[8.5px] font-extrabold ${e.type === '입금' ? 'bg-[#E9F6EC] text-[#2E7D46]' : 'bg-[#FDEDEB] text-[#B4584D]'}`}>{e.type}</span>
+              <span className="flex-1 min-w-0 truncate text-[10.5px] font-bold text-[#6B5B4A]">{e.memo || (e.type === '입금' ? '입금' : '사용')}</span>
+              <span className={`shrink-0 text-[10.5px] font-extrabold ${e.type === '입금' ? 'text-[#3E7B52]' : 'text-[#B4584D]'}`}>
+                {e.type === '입금' ? '+' : '-'}{won(e.amount)}원
+              </span>
+              <button onClick={() => onDeleteEntry(m.id, e.id)} aria-label={`${m.name} ${e.type} 기록 삭제`} className="shrink-0 h-5 w-5 rounded-full border border-[#F0E7D8] bg-white text-[9px] text-[#C9726C] press">✕</button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-2 text-center text-[9.5px] font-bold text-[#B6A996]">아직 입금·사용 기록이 없어요</p>
+      )}
+
+      {/* 최근 적립 내역 (접었다 펴서 360px에서도 짧게) */}
+      {days.length > 0 ? (
+        <div className="mt-2">
+          <button
+            onClick={() => setOpenLog((v) => !v)}
+            aria-expanded={openLog}
+            className="w-full flex items-center justify-between gap-2 rounded-xl border border-[#F1E9D8] bg-[#FFFDF8] px-2.5 py-2 press"
+          >
+            <span className="text-[10px] font-extrabold text-[#8A7A64]">📅 최근 적립 내역</span>
+            <span className="shrink-0 text-[9px] font-extrabold text-[#B0A392]">{days.length}일 {openLog ? '▲' : '▼'}</span>
+          </button>
+          {openLog ? (
+            <div className="mt-1 space-y-1">
+              {days.slice(0, 7).map((k) => {
+                const d = dayOf(k);
+                return (
+                  <div key={k} className="flex items-start justify-between gap-2 rounded-xl bg-[#FFFDF4] border border-[#F6EFDF] px-2.5 py-1.5">
+                    <div className="min-w-0">
+                      <div className="text-[9.5px] font-extrabold text-[#8A7A64] whitespace-nowrap">
+                        {fmtDay(k)}{k === todayKey ? <span className="ml-1 rounded-full bg-[#E9F6EC] px-1 py-[1px] text-[8px] font-extrabold text-[#3E7B52]">오늘</span> : null}
+                      </div>
+                      <div className="mt-0.5 text-[8.5px] font-bold leading-snug text-[#B3A795]">
+                        독서 {d.s.count}개 · {won(d.s.amount)}원 / 할 일 {d.t.count}개 · {won(d.t.amount)}원
+                      </div>
+                    </div>
+                    <span className="shrink-0 text-[10px] font-extrabold text-[#C08A3A] whitespace-nowrap">+{won(d.total)}원</span>
+                  </div>
+                );
+              })}
+              {days.length > 7 ? (
+                <p className="text-center text-[8.5px] font-bold text-[#B6A996]">최근 7일만 보여 줘요</p>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ) : (
+        <p className="mt-2 text-center text-[9.5px] font-bold text-[#B6A996]">독서나 할 일을 하나 끝내면 여기에 쌓여요</p>
+      )}
+
+      {/* 시작 금액 — 지난번까지 모아 둔 돈 */}
+      <div className="mt-2.5 border-t border-dashed border-[#EFE4D2] pt-2.5">
+        <label className="text-[9.5px] font-extrabold text-[#9A8A72]">시작 금액(이미 모아 둔 돈)</label>
+        <div className="mt-1 flex items-center gap-1.5">
+          <NumberField
+            value={money.start}
+            onCommit={(v) => onChangeStart(m.id, v)}
+            placeholder="0"
+            className="flex-1 min-w-0 rounded-xl border border-[#EDE6D8] bg-white px-3 py-2 text-[13.5px] font-extrabold text-[#4B423A] outline-none focus:border-[#D9C4A5]"
+          />
+          <span className="shrink-0 text-[10.5px] font-extrabold text-[#A99B8A]">원</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MoneyTab({ state, moneyFilter, setMoneyFilter, onChangeStart, onAddEntry, onDeleteEntry }) {
+  /* '전체'면 세 아이 카드를 한꺼번에, 아이를 고르면 그 아이 카드만 */
+  const shown = moneyFilter === '전체' ? KIDS : KIDS.filter((id) => id === moneyFilter);
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-[1.7rem] bg-gradient-to-br from-[#FFF7EA] via-[#FFF2EE] to-[#F9F1FB] border border-[#F6E4D8] p-3.5 shadow-[0_4px_18px_rgba(220,190,170,0.14)]">
+        <div className="flex items-start gap-2.5">
+          <span className="text-[27px] leading-none">🐷</span>
+          <div className="min-w-0">
+            <h2 className="text-[16.5px] font-extrabold text-[#4B423A]">우리 아이들 용돈</h2>
+            <p className="mt-0.5 text-[10px] font-bold leading-relaxed text-[#A99A8C]">
+              독서·할 일을 끝낼 때마다 정한 금액(10원~200원)씩 쌓여요
+            </p>
+          </div>
+        </div>
+
+        {/* 아이 고르기 — '전체'가 기본이라 셋 다 한 번에 보여요 */}
+        <div className="mt-3 flex gap-1 overflow-x-auto no-scrollbar pb-0.5">
+          <button
+            onClick={() => setMoneyFilter('전체')}
+            aria-pressed={moneyFilter === '전체'}
+            className={`shrink-0 rounded-full px-2.5 py-1 text-[10.5px] font-extrabold border press ${
+              moneyFilter === '전체' ? 'bg-[#FFF0C9] border-[#EFD89A] text-[#A87F2C]' : 'bg-white border-[#EDE3D2] text-[#A99B8A]'
+            }`}
+          >
+            전체
+          </button>
+          {KIDS.map((id) => (
             <button
-              key={k}
-              onClick={() => setKind(k)}
-              className={`flex-1 rounded-full py-2 text-[11.5px] font-extrabold border press ${
-                kind === k
-                  ? (k === '입금' ? 'bg-[#E9F6EC] border-[#C9E8D2] text-[#2E7D46]' : 'bg-[#FDEDEB] border-[#F3D3CE] text-[#B4584D]')
-                  : 'bg-white border-[#EDE6D8] text-[#A99B8A]'
+              key={id}
+              onClick={() => setMoneyFilter(id)}
+              aria-pressed={moneyFilter === id}
+              aria-label={`${M[id].name} 용돈만 보기`}
+              className={`shrink-0 rounded-full pl-1 pr-2 py-1 text-[10.5px] font-extrabold border flex items-center gap-0.5 press ${
+                moneyFilter === id ? 'bg-white border-[#EFD89A] text-[#4B423A] shadow-sm' : 'bg-white/70 border-[#EDE3D2] text-[#A99B8A]'
               }`}
             >
-              {k === '입금' ? '💰 입금' : '🛒 사용'}
+              <Ava id={id} chars={state.characters} size={18} />{M[id].name}
             </button>
           ))}
         </div>
-        <div className="mt-2 flex gap-1.5">
-          <NumberField
-            value={amount}
-            onCommit={(v) => setAmount(String(v))}
-            placeholder="금액"
-            className="w-[38%] rounded-xl border border-[#EDE6D8] bg-[#FFFDF8] px-3 py-2.5 text-[13px] font-extrabold text-[#4B423A] outline-none focus:border-[#D9C4A5] placeholder-[#BFB2A2]"
-          />
-          <input
-            value={memo}
-            onChange={(e) => setMemo(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') submit(); }}
-            placeholder="무엇에 썼는지 메모"
-            className="flex-1 min-w-0 rounded-xl border border-[#EDE6D8] bg-[#FFFDF8] px-3 py-2.5 text-[12px] font-bold text-[#4B423A] outline-none focus:border-[#D9C4A5] placeholder-[#BFB2A2]"
-          />
-          <button onClick={submit} className="shrink-0 rounded-xl bg-[#4B423A] text-white px-3.5 py-2.5 text-[11.5px] font-extrabold press">기록</button>
-        </div>
 
-        {money.entries.length > 0 ? (
-          <div className="mt-3 space-y-1.5">
-            {money.entries.slice().reverse().map((e) => (
-              <div key={e.id} className="flex items-center gap-2 rounded-xl bg-[#FFFDF8] border border-[#F3EBDD] px-2.5 py-2">
-                <span className={`shrink-0 rounded-full px-2 py-0.5 text-[9px] font-extrabold ${e.type === '입금' ? 'bg-[#E9F6EC] text-[#2E7D46]' : 'bg-[#FDEDEB] text-[#B4584D]'}`}>{e.type}</span>
-                <span className="flex-1 min-w-0 truncate text-[11px] font-bold text-[#6B5B4A]">{e.memo || (e.type === '입금' ? '입금' : '사용')}</span>
-                <span className={`shrink-0 text-[11px] font-extrabold ${e.type === '입금' ? 'text-[#3E7B52]' : 'text-[#B4584D]'}`}>
-                  {e.type === '입금' ? '+' : '-'}{won(e.amount)}원
-                </span>
-                <button onClick={() => onDeleteEntry(moneyKid, e.id)} aria-label="기록 삭제" className="shrink-0 h-6 w-6 rounded-full bg-white border border-[#F0E7D8] text-[10px] text-[#C9726C] press">✕</button>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="mt-2.5 text-center text-[10px] font-bold text-[#B6A996]">아직 기록이 없어요</p>
-        )}
-      </div>
-
-      {/* 매일 적립 (독서 + 할 일) */}
-      <div className="rounded-[1.6rem] bg-white border border-[#F1E9DA] p-3.5 shadow-sm">
-        <h3 className="text-[14.5px] font-extrabold text-[#4B423A] flex items-center gap-1.5">📅 매일 적립 (독서 + 할 일)</h3>
-        <p className="mt-0.5 text-[10px] font-bold text-[#A99A8C]">하루에 한 줄로 그날 총액을 보여 줘요 · 독서와 할 일을 나눠서 적어요</p>
-
-        <div className="mt-2.5 rounded-2xl bg-[#FFFDF4] border border-[#F1E9D8] px-3 py-2.5 flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] font-extrabold text-[#6B5B4A] whitespace-nowrap">{fmtDay(todayKey)}</span>
-              <span className="rounded-full bg-[#E9F6EC] text-[#3E7B52] px-1.5 py-0.5 text-[8.5px] font-extrabold">오늘</span>
-            </div>
-            <div className="mt-0.5 text-[9.5px] font-bold leading-snug text-[#A99B8A]">
-              독서 {todayLog.s.count}개 · {won(todayLog.s.amount)}원 / 할 일 {todayLog.t.count}개 · {won(todayLog.t.amount)}원
-            </div>
-          </div>
-          <span className="shrink-0 text-[12px] font-black text-[#C08A3A] whitespace-nowrap">+{won(todayLog.total)}원</span>
-        </div>
-
-        {days.filter((k) => k !== todayKey).length > 0 ? (
-          <div className="mt-1.5 space-y-1">
-            {days.filter((k) => k !== todayKey).slice(0, 6).map((k) => {
-              const d = dayOf(k);
+        {/* 전체일 때만: 세 아이 잔액을 한 줄로 (누르면 그 아이만 보기) */}
+        {moneyFilter === '전체' ? (
+          <div className="mt-2 grid grid-cols-3 gap-1.5">
+            {KIDS.map((id) => {
+              const k = M[id];
+              const t = moneyOf(state, id).total;
               return (
-                <div key={k} className="flex items-start justify-between gap-2 px-1 py-1">
-                  <div className="min-w-0">
-                    <div className="text-[10px] font-bold text-[#A99B8A] whitespace-nowrap">{fmtDay(k)}</div>
-                    <div className="mt-0.5 text-[9px] font-bold leading-snug text-[#B3A795]">
-                      독서 {d.s.count}개 · {won(d.s.amount)}원 / 할 일 {d.t.count}개 · {won(d.t.amount)}원
-                    </div>
-                  </div>
-                  <span className="shrink-0 text-[10.5px] font-extrabold text-[#C08A3A] whitespace-nowrap">+{won(d.total)}원</span>
-                </div>
+                <button
+                  key={id}
+                  onClick={() => setMoneyFilter(id)}
+                  aria-label={`${k.name} 용돈만 보기`}
+                  className="rounded-[1rem] border bg-white/85 px-1 py-1.5 flex flex-col items-center press"
+                  style={{ borderColor: k.edge }}
+                >
+                  <Ava id={id} chars={state.characters} size={22} />
+                  <span className="mt-0.5 text-[9px] font-extrabold text-[#8A7A64]">{k.name}</span>
+                  <span className="text-[10.5px] font-black text-[#6B5433] whitespace-nowrap">{won(t)}원</span>
+                </button>
               );
             })}
           </div>
-        ) : (
-          <p className="mt-2 text-center text-[10px] font-bold text-[#B6A996]">독서나 할 일을 하나 끝내면 여기에 쌓여요</p>
-        )}
+        ) : null}
       </div>
+
+      {shown.map((id) => (
+        <KidMoneyCard
+          key={id}
+          m={M[id]}
+          state={state}
+          onChangeStart={onChangeStart}
+          onAddEntry={onAddEntry}
+          onDeleteEntry={onDeleteEntry}
+        />
+      ))}
     </div>
   );
 }
@@ -2866,7 +2963,8 @@ function App() {
   const [device, setDevice] = useState(loadDevice);
   const [tab, setTab] = useState('home');
   const [stampKid, setStampKid] = useState('승우');
-  const [moneyKid, setMoneyKid] = useState('승우');
+  /* 용돈 탭은 '전체'가 기본 — 승우·은우·서우 카드가 한 화면에 다 보인다 */
+  const [moneyFilter, setMoneyFilter] = useState('전체');
   const [studyFilter, setStudyFilter] = useState('전체');
   const [scheduleFilter, setScheduleFilter] = useState('전체');
   const [sheet, setSheet] = useState(null);
@@ -3111,7 +3209,8 @@ function App() {
       const cur = s.money[kid] || { start: 0, entries: [] };
       return { ...s, money: { ...s.money, [kid]: { ...cur, entries: [...(cur.entries || []), { id: uid('e'), type: e.kind, amount: num(e.amount), memo: e.memo, date: dkey() }] } } };
     });
-    showToast(e.kind === '입금' ? `${won(e.amount)}원을 입금했어요` : `${won(e.amount)}원을 사용으로 적었어요`);
+    /* 카드가 셋이라 어느 아이 기록인지 함께 알려 준다 */
+    showToast(e.kind === '입금' ? `${kid} ${won(e.amount)}원을 입금했어요` : `${kid} ${won(e.amount)}원을 사용으로 적었어요`);
   };
   const onDeleteEntry = (kid, id) => {
     setState((s) => {
@@ -3208,7 +3307,7 @@ function App() {
                   drawMission={drawMission}
                   openMissionList={() => setSheet('mission')}
                   onMemberTap={(m) => {
-                    if (m.kid) { setMoneyKid(m.id); setTab('money'); }
+                    if (m.kid) { setMoneyFilter(m.id); setTab('money'); }
                     else setTab('todo');
                   }}
                 />
@@ -3249,8 +3348,8 @@ function App() {
               {tab === 'money' ? (
                 <MoneyTab
                   state={state}
-                  moneyKid={moneyKid}
-                  setMoneyKid={setMoneyKid}
+                  moneyFilter={moneyFilter}
+                  setMoneyFilter={setMoneyFilter}
                   onChangeStart={onChangeStart}
                   onAddEntry={onAddEntry}
                   onDeleteEntry={onDeleteEntry}
